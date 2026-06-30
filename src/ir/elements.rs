@@ -17,6 +17,7 @@ pub struct Paragraph {
 }
 
 impl Paragraph {
+    /// Create a new paragraph with the given text content.
     pub fn new(text: impl Into<String>) -> Self {
         Self {
             text: text.into(),
@@ -33,6 +34,7 @@ impl Paragraph {
         }
     }
 
+    /// Create a heading paragraph at the specified level (1-6).
     pub fn heading(text: impl Into<String>, level: u32) -> Self {
         Self {
             text: text.into(),
@@ -70,6 +72,7 @@ pub struct Table {
 }
 
 impl Table {
+    /// Create a table with the given headers and data rows.
     pub fn new(headers: Vec<String>, rows: Vec<Vec<String>>) -> Self {
         Self {
             headers,
@@ -78,14 +81,17 @@ impl Table {
         }
     }
 
+    /// Number of data rows in the table (excluding header).
     pub fn row_count(&self) -> usize {
         self.rows.len()
     }
 
+    /// Number of columns (header count).
     pub fn col_count(&self) -> usize {
         self.headers.len()
     }
 
+    /// Get the cell value at (row, col), where row is 0-indexed into data rows.
     pub fn cell(&self, row: usize, col: usize) -> Option<&str> {
         self.rows.get(row)?.get(col).map(|s| s.as_str())
     }

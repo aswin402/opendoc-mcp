@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.0.2] — 2026-06-30
+
+### Added
+
+#### IR Architecture (Internal Representation)
+- Universal `Document` model with `Paragraph`, `Table`, `Section`, `Image`, `Metadata`
+- All handlers implement `to_ir()` for unified format-agnostic processing
+- Engine module: `search` (regex/text), `replace`, `template`, `diff` (LCS), `complexity` (heuristics)
+- Batch processor with rayon for parallel directory conversion
+- Validators module for document structure checks
+- `doc://` MCP resources for read-only document access
+
+#### New Format Support
+- **XLSX** — Read via `calamine`, write via `rust_xlsxwriter`, convert to/from IR
+- **HTML** — Read/write via `scraper` + `html5ever`
+- **Markdown** — Read/write via `pulldown-cmark`, export from IR
+- **CSV** — Read/write via native Rust (included in IR pipeline)
+- **TXT** — Read/write (plain text fallback)
+- **PDF Forms** — List fields and fill AcroForm values
+
+#### Expanded Conversion Pipeline
+- Cross-format conversion via `converters::convert()` (DOCX→PDF, DOCX→MD, DOCX→HTML, PPTX→MD, PPTX→PDF, PDF→TXT, PDF→MD, XLSX→CSV)
+- Generic IR→target export (JSON, TXT, MD, HTML, CSV, XLSX, DOCX)
+- Real PPTX→PDF conversion (text extracted via IR, rendered via lopdf)
+- Real PPTX image embedding (OPC/ZIP package manipulation with PNG, JPEG, GIF, BMP, TIFF, SVG)
+
+#### Tool Consolidation
+- Consolidated 39 tools into ~20 unified MCP tools
+- `open_document` — Single tool for all formats (detail_level: full/summary/metadata_only)
+- `replace_text` — Unified find/replace across DOCX, PDF, and IR
+- `convert` — Unified conversion with `target_format` parameter
+- Structured JSON params (`serde_json::Value`) for `fill_template`, `fill_pdf_form`, `create_xlsx`
+- Structured error responses with `error_code`, `category`, and `suggestion`
+- `list_capabilities` updated with all formats and tools
+
+#### Infrastructure
+- CLI subcommands via clap (`convert`, `extract`, `batch`, `merge`, `validate`, `info`, `diff`, `formats`, `serve`)
+- Security module with `validate_path!()` macro and `OPENDOC_ALLOWED_DIRS` sandbox
+- GitHub Actions CI (Linux: build + test + clippy)
+- `rust-toolchain.toml` for MSRV pinning (1.75.0)
+- AGENTS.md with full architecture documentation
+- Criterion benchmark suite (3 benchmarks: DOCX→IR, TXT→IR, search)
+
+### Documentation
+- Doc comments on all public functions across all modules
+- Updated README.md with current tool list and format support
+- Updated architecture.md with IR-centric design
+- Updated spec.md reflecting consolidated tools
+
+### Fixed
+- PPTX `to_pdf()` placeholder replaced with real converter delegation
+- PPTX `add_slide_image()` placeholder replaced with real OPC image embedding
+
 ## [0.0.1] — 2026-06-28
 
 ### Added

@@ -195,6 +195,8 @@ pub fn from_ir(doc: &crate::ir::Document, file_path: &str) -> Result<(), String>
     Ok(())
 }
 
+/// A single worksheet specification for XLSX creation.
+/// Contains optional sheet name, column headers, and data rows.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct XlsxSheet {
     pub name: Option<String>,

@@ -62,6 +62,7 @@ pub fn batch_convert(
         .collect()
 }
 
+/// Result of a single batch conversion operation.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct BatchResult {
     pub file: String,

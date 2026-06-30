@@ -69,6 +69,7 @@ pub fn load_to_ir(file_path: &str) -> Result<Document, LoadError> {
     }
 }
 
+/// Errors that can occur when loading a document into IR.
 #[derive(Debug, thiserror::Error)]
 pub enum LoadError {
     #[error("Unsupported format: {0}")]

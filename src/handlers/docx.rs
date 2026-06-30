@@ -1,6 +1,8 @@
 use rdocx::Document;
 
 
+/// Create a new DOCX document and save to a file path.
+/// Returns the path to the created file on success.
 pub fn create_document(file_path: &str, title: Option<&str>) -> String {
     let mut doc = Document::new();
     doc.set_author("Opendoc MCP");
@@ -16,6 +18,7 @@ pub fn create_document(file_path: &str, title: Option<&str>) -> String {
     }
 }
 
+/// Open a DOCX file and return its metadata (paragraphs, tables, content count, author).
 pub fn open_document(file_path: &str) -> String {
     match Document::open(file_path) {
         Ok(doc) => {
@@ -33,6 +36,8 @@ pub fn open_document(file_path: &str) -> String {
     }
 }
 
+/// Append a formatted paragraph to an existing DOCX document.
+/// Supports bold, italic, and font size options.
 pub fn add_paragraph(
     file_path: &str,
     text: &str,
@@ -63,6 +68,7 @@ pub fn add_paragraph(
     }
 }
 
+/// Insert a table with headers and data rows into a DOCX document.
 pub fn add_table(file_path: &str, headers: &[String], data: &[Vec<String>]) -> String {
     let mut doc = match Document::open(file_path) {
         Ok(d) => d,
@@ -98,6 +104,7 @@ pub fn add_table(file_path: &str, headers: &[String], data: &[Vec<String>]) -> S
     }
 }
 
+/// Find and replace text in a DOCX document using regex pattern matching.
 pub fn find_replace_text(file_path: &str, find: &str, replace: &str) -> String {
     let mut doc = match Document::open(file_path) {
         Ok(d) => d,
@@ -113,6 +120,7 @@ pub fn find_replace_text(file_path: &str, find: &str, replace: &str) -> String {
     }
 }
 
+/// Convert a DOCX document to PDF using the rdocx layout engine.
 pub fn to_pdf(source: &str, output: &str) -> String {
     let doc = match Document::open(source) {
         Ok(d) => d,
@@ -135,6 +143,7 @@ pub fn to_pdf(source: &str, output: &str) -> String {
     }
 }
 
+/// Export a DOCX document to Markdown format.
 pub fn to_markdown(source: &str, output: &str) -> String {
     let doc = match Document::open(source) {
         Ok(d) => d,

@@ -34,6 +34,8 @@ pub struct Document {
 }
 
 impl Document {
+    /// Create a new Document with the given format identifier.
+    /// Format is a lowercase string like "docx", "pdf", "pptx", "xlsx", "html", "md", "csv", "txt".
     pub fn new(format: impl Into<String>) -> Self {
         Self {
             format: format.into(),
@@ -119,6 +121,8 @@ impl Document {
 }
 
 /// A section of a document (chapter, slide, worksheet)
+/// A content section within a document (heading group, slide, or worksheet).
+/// Sections help organize hierarchical document structure.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Section {
     pub title: String,

@@ -1,5 +1,5 @@
 use pptx::Presentation;
-
+use std::io::{Read, Write, Cursor};
 
 /// Create a simple slide with a title text box
 fn create_title_slide_xml(title: &str) -> Vec<u8> {
@@ -140,6 +140,7 @@ fn escape_xml(s: &str) -> String {
         .replace('\'', "&apos;")
 }
 
+/// Create a new PowerPoint presentation and save to a file path.
 pub fn create_presentation(file_path: &str, _title: Option<&str>) -> String {
     match Presentation::new() {
         Ok(mut prs) => {
@@ -162,6 +163,7 @@ pub fn create_presentation(file_path: &str, _title: Option<&str>) -> String {
     }
 }
 
+/// Open a PPTX file and return its metadata (slide count, format).
 pub fn open_presentation(file_path: &str) -> String {
     match Presentation::open(file_path) {
         Ok(prs) => {
@@ -177,6 +179,7 @@ pub fn open_presentation(file_path: &str) -> String {
     }
 }
 
+/// Add a slide to an existing presentation with optional body bullet points.
 pub fn add_slide(file_path: &str, title: &str, body: Option<&[String]>) -> String {
     let mut prs = match Presentation::open(file_path) {
         Ok(p) => p,
@@ -228,26 +231,251 @@ pub fn add_slide(file_path: &str, title: &str, body: Option<&[String]>) -> Strin
     }
 }
 
-pub fn add_slide_image(_file_path: &str, slide_number: u32, image_path: &str) -> String {
-    // For now, add a slide with image reference noted
-    // Full image embedding support requires extending the OPC package
+/// Embed an image onto a specific slide by manipulating the PPTX OPC package directly.
+/// Supports PNG, JPEG, GIF, BMP, TIFF, and SVG formats.
+pub fn add_slide_image(file_path: &str, slide_number: u32, image_path: &str) -> String {
+    // Read source image
+    let img_data = match std::fs::read(image_path) {
+        Ok(d) => d,
+        Err(e) => return serde_json::json!({
+            "error": format!("Cannot read image file '{}': {}", image_path, e),
+            "error_code": "FILE_READ_ERROR",
+            "category": "io",
+            "suggestion": "Check that the image path exists and is readable."
+        }).to_string(),
+    };
+
+    let path = std::path::Path::new(image_path);
+    let img_ext = path.extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("png")
+        .to_lowercase();
+
+    let (mime_type, storage_ext) = match img_ext.as_str() {
+        "png" => ("image/png", "png"),
+        "jpg" | "jpeg" => ("image/jpeg", "jpg"),
+        "gif" => ("image/gif", "gif"),
+        "bmp" => ("image/bmp", "bmp"),
+        "tiff" | "tif" => ("image/tiff", "tiff"),
+        "svg" => ("image/svg+xml", "svg"),
+        _ => return serde_json::json!({
+            "error": format!("Unsupported image format: '{}'. Supported: png, jpg, gif, bmp, tiff, svg", img_ext),
+            "error_code": "UNSUPPORTED_FORMAT",
+            "category": "validation",
+            "suggestion": "Convert the image to PNG and try again."
+        }).to_string(),
+    };
+
+    // Read the existing PPTX into memory
+    let pptx_data = match std::fs::read(file_path) {
+        Ok(d) => d,
+        Err(e) => return serde_json::json!({
+            "error": format!("Cannot read PPTX file '{}': {}", file_path, e),
+            "error_code": "FILE_READ_ERROR",
+            "category": "io",
+            "suggestion": "Check that the file exists and is a valid .pptx file."
+        }).to_string(),
+    };
+
+    // Open as ZIP using the zip crate (v2)
+    let cursor = Cursor::new(pptx_data);
+    let mut archive = match zip::ZipArchive::new(cursor) {
+        Ok(a) => a,
+        Err(e) => return serde_json::json!({
+            "error": format!("Cannot open PPTX as ZIP archive: {}", e),
+            "error_code": "ZIP_ERROR",
+            "category": "parse",
+            "suggestion": "The file may be corrupted. Try re-saving it from PowerPoint."
+        }).to_string(),
+    };
+
+    let mut entries: Vec<(String, Vec<u8>)> = Vec::new();
+    let mut content_types: Option<Vec<u8>> = None;
+    let mut slide_rels: Option<Vec<u8>> = None;
+    let mut slide_xml: Option<Vec<u8>> = None;
+    let mut slide_xml_path = String::new();
+
+    for i in 0..archive.len() {
+        let mut file = match archive.by_index(i) {
+            Ok(f) => f,
+            Err(_) => continue,
+        };
+        let name = file.name().to_string();
+        let mut data = Vec::new();
+        let _ = file.read_to_end(&mut data);
+
+        // Capture the requested slide's XML and its rels
+        if name == format!("ppt/slides/slide{}.xml", slide_number) {
+            slide_xml = Some(data.clone());
+            slide_xml_path = name.clone();
+        }
+        if name == format!("ppt/slides/_rels/slide{}.xml.rels", slide_number) {
+            slide_rels = Some(data.clone());
+        }
+        if name == "[Content_Types].xml" {
+            content_types = Some(data);
+            continue;
+        }
+        entries.push((name, data));
+    }
+
+    if slide_xml.is_none() {
+        return serde_json::json!({
+            "error": format!("Slide {} not found in presentation", slide_number),
+            "error_code": "SLIDE_NOT_FOUND",
+            "category": "validation",
+            "suggestion": format!("Slide numbers start at 1. Check the slide count first.")
+        }).to_string();
+    }
+
+    // Find max existing image number in media folder
+    let max_img_num = entries.iter()
+        .filter(|(name, _)| name.starts_with("ppt/media/image"))
+        .filter_map(|(name, _)| {
+            let rest = name.strip_prefix("ppt/media/image")?;
+            let num: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+            num.parse::<u32>().ok()
+        })
+        .max()
+        .unwrap_or(0);
+
+    let new_img_num = max_img_num + 1;
+    let media_path = format!("ppt/media/image{}.{}", new_img_num, storage_ext);
+    let rel_id = format!("rId{}", new_img_num + 100); // high rId to avoid conflicts
+
+    // Add the image as a new entry
+    entries.push((media_path, img_data));
+
+    // Update [Content_Types].xml to include the image
+    if let Some(ref ct_bytes) = content_types {
+        let ct_str = String::from_utf8_lossy(ct_bytes);
+        // Insert new content type before </Types>
+        let insert_before = "</Types>";
+        if let Some(pos) = ct_str.rfind(insert_before) {
+            let mut new_ct = ct_str[..pos].to_string();
+            new_ct.push_str(&format!(
+                "  <Override PartName=\"/ppt/media/image{}.{}\" ContentType=\"{}\"/>\n",
+                new_img_num, storage_ext, mime_type
+            ));
+            new_ct.push_str("</Types>");
+            entries.push(("[Content_Types].xml".to_string(), new_ct.into_bytes()));
+        }
+    }
+
+    // Update slide rels to include image relationship
+    let mut new_slide_rels = if let Some(ref rels_bytes) = slide_rels {
+        let rels_str = String::from_utf8_lossy(rels_bytes).to_string();
+        rels_str
+    } else {
+        // Create minimal rels file
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+</Relationships>"#.to_string()
+    };
+
+    // Insert image relationship before </Relationships>
+    if let Some(pos) = new_slide_rels.rfind("</Relationships>") {
+        new_slide_rels.insert_str(pos, &format!(
+            "  <Relationship Id=\"{}\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"../media/image{}.{}\"/>\n",
+            rel_id, new_img_num, storage_ext
+        ));
+    }
+    entries.push((format!("ppt/slides/_rels/slide{}.xml.rels", slide_number), new_slide_rels.into_bytes()));
+
+    // Generate picture XML for the slide
+    let pic_xml = format!(
+        r#"<p:pic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+       xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:nvPicPr>
+    <p:cNvPr id="{}" name="Image"/>
+    <p:cNvPicPr/>
+    <p:nvPr/>
+  </p:nvPicPr>
+  <p:blipFill>
+    <a:blip r:embed="{}"/>
+    <a:stretch>
+      <a:fillRect/>
+    </a:stretch>
+  </p:blipFill>
+  <p:spPr>
+    <a:xfrm>
+      <a:off x="914400" y="685800"/>
+      <a:ext cx="6858000" cy="4572000"/>
+    </a:xfrm>
+    <a:prstGeom prst="rect">
+      <a:avLst/>
+    </a:prstGeom>
+  </p:spPr>
+</p:pic>"#,
+        new_img_num + 100, rel_id
+    );
+
+    // Insert picture into slide XML (inside spTree but before </p:spTree>)
+    if let Some(ref slide_bytes) = slide_xml {
+        let mut slide_str = String::from_utf8_lossy(slide_bytes).to_string();
+        if let Some(pos) = slide_str.rfind("</p:spTree>") {
+            slide_str.insert_str(pos, &format!("\n{}", pic_xml));
+        }
+        entries.push((slide_xml_path, slide_str.into_bytes()));
+    }
+
+    // Write everything back to a new ZIP file
+    let temp_path = format!("{}.tmp.pptx", file_path);
+    let temp_file = match std::fs::File::create(&temp_path) {
+        Ok(f) => f,
+        Err(e) => return serde_json::json!({
+            "error": format!("Cannot create temp file: {}", e),
+            "error_code": "FILE_WRITE_ERROR",
+            "category": "io",
+            "suggestion": "Check disk space and permissions."
+        }).to_string(),
+    };
+
+    {
+        let mut zip_writer = zip::ZipWriter::new(temp_file);
+        let options = zip::write::FileOptions::<()>::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+
+        for (name, data) in &entries {
+            if zip_writer.start_file(name, options).is_ok() {
+                let _ = zip_writer.write_all(data);
+            }
+        }
+        let _ = zip_writer.finish();
+    }
+
+    // Replace original with temp
+    if std::fs::rename(&temp_path, file_path).is_err() {
+        let _ = std::fs::copy(&temp_path, file_path);
+        let _ = std::fs::remove_file(&temp_path);
+    }
+
     serde_json::json!({
-        "success": false,
-        "note": "Image embedding on slides is available in the extended API. Use slide XML manipulation for custom content.",
+        "success": true,
         "slide": slide_number,
-        "image": image_path
+        "image": image_path,
+        "image_number": new_img_num
     }).to_string()
 }
 
-pub fn to_pdf(source: &str, _output: &str) -> String {
-    // PPTX to PDF requires the office2pdf crate or external tool
-    // For now, return guidance
-    serde_json::json!({
-        "success": false,
-        "note": "PPTX to PDF conversion requires the office2pdf crate. Install with: cargo add office2pdf",
-        "source": source,
-        "alternative": "Use the document_to_pdf tool after converting PPTX to DOCX, or export slides as images"
-    }).to_string()
+/// Convert a PPTX presentation to PDF by delegating to the converter module.
+pub fn to_pdf(source: &str, output: &str) -> String {
+    // Delegate to the converter module which has a real implementation
+    match crate::converters::convert(source, "pdf", output) {
+        Ok(result) => serde_json::json!({
+            "success": true,
+            "source": result.source,
+            "output": result.output,
+            "size_bytes": result.size_bytes
+        }).to_string(),
+        Err(e) => serde_json::json!({
+            "error": format!("PPTX to PDF conversion failed: {}", e),
+            "error_code": "CONVERSION_FAILED",
+            "category": "conversion",
+            "suggestion": "Try converting to Markdown first, or check that the file is valid."
+        }).to_string(),
+    }
 }
 
 fn html_to_markdown_pptx(html_str: &str) -> String {
@@ -281,6 +509,7 @@ fn html_to_markdown_pptx(html_str: &str) -> String {
     parts.join("")
 }
 
+/// Export a PPTX presentation to Markdown via HTML intermediate.
 pub fn to_markdown(source: &str) -> String {
     match Presentation::open(source) {
         Ok(prs) => {

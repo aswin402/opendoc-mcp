@@ -1,6 +1,8 @@
 use lopdf::{Document, Object, ObjectId, Stream, Dictionary};
 
 
+/// Create a single-page PDF document with Helvetica font and fixed positioning.
+/// Best for short text content; multi-page support planned for v0.1.0.
 pub fn create_pdf(file_path: &str, text: &str, _author: Option<&str>) -> String {
     let mut doc = Document::new();
 
@@ -143,6 +145,7 @@ pub fn create_pdf(file_path: &str, text: &str, _author: Option<&str>) -> String 
     }
 }
 
+/// Open a PDF and return metadata (page count, encryption status, PDF version).
 pub fn open_pdf(file_path: &str) -> String {
     match Document::load(file_path) {
         Ok(doc) => {
@@ -161,6 +164,7 @@ pub fn open_pdf(file_path: &str) -> String {
     }
 }
 
+/// Merge multiple PDF files into a single document with automatic object renumbering.
 pub fn merge_pdfs(sources: &[String], output: &str) -> String {
     if sources.is_empty() {
         return serde_json::json!({"error": "no source files provided"}).to_string();
@@ -244,6 +248,7 @@ pub fn merge_pdfs(sources: &[String], output: &str) -> String {
     }
 }
 
+/// Extract text from a PDF, optionally from a specific page number (0-indexed).
 pub fn extract_text(file_path: &str, page: Option<u32>) -> String {
     match Document::load(file_path) {
         Ok(doc) => {
@@ -266,6 +271,7 @@ pub fn extract_text(file_path: &str, page: Option<u32>) -> String {
     }
 }
 
+/// Find and replace text in PDF content streams. Writes changes in-place.
 pub fn replace_text(file_path: &str, find: &str, replace: &str) -> String {
     let mut doc = match Document::load(file_path) {
         Ok(d) => d,

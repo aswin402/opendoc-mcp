@@ -347,6 +347,8 @@ fn escape_csv(s: &str) -> String {
     }
 }
 
+/// Export a parsed IR document to a target format.
+/// Supported formats: json, txt, md, html, csv, xlsx, docx.
 pub fn export(doc: &Document, target_format: &str, output: &str) -> Result<ConversionResult, ConversionError> {
     match target_format {
         "json" => {
@@ -587,6 +589,7 @@ pub fn export(doc: &Document, target_format: &str, output: &str) -> Result<Conve
     }
 }
 
+/// Result of a successful document conversion.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ConversionResult {
     pub source: String,
@@ -596,6 +599,7 @@ pub struct ConversionResult {
     pub size_bytes: usize,
 }
 
+/// Errors that can occur during document conversion.
 #[derive(Debug, thiserror::Error)]
 pub enum ConversionError {
     #[error("File not found: {0}")]

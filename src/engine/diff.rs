@@ -78,6 +78,7 @@ pub fn diff_documents(a: &Document, b: &Document) -> DiffResult {
     }
 }
 
+/// Result of a diff comparison between two documents.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct DiffResult {
     pub paragraphs_a: usize,
@@ -85,6 +86,7 @@ pub struct DiffResult {
     pub changes: Vec<DiffChange>,
 }
 
+/// A single change entry in a diff (added, removed, or modified).
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct DiffChange {
     pub tag: String,

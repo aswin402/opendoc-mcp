@@ -1,5 +1,9 @@
 # opendoc-mcp
 
+<p align="center">
+  <img src="assets/logo.svg" alt="opendoc-mcp logo" width="200" height="auto">
+</p>
+
 **High-performance Rust MCP server for document CRUD operations — purpose-built for AI agents.**
 
 `opendoc-mcp` is a pure-Rust implementation of the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server that gives AI assistants (Claude, ChatGPT, Cursor, VS Code, etc.) direct, native access to create, read, edit, convert, and manage Office documents and PDFs — **without external dependencies, LibreOffice, cloud APIs, or heavy runtimes**.
@@ -214,32 +218,39 @@ RUST_LOG=debug cargo run
 opendoc-mcp/
 ├── Cargo.toml
 ├── README.md
+├── assets/           # Logos, branding
+├── benches/          # Criterion benchmarks
 ├── docs/
-│   ├── prd.md
 │   ├── architecture.md
-│   ├── spec.md
+│   ├── changelog.md
 │   ├── implementationplan.md
-│   └── changelog.md
-└── src/
-    ├── main.rs          # Entry point, tokio runtime
-    ├── lib.rs           # Module exports
-    ├── server.rs        # MCP server, tool definitions
-    ├── types.rs         # Re-exports
-    └── handlers/
-        ├── mod.rs
-        ├── docx.rs      # DOCX operations
-        ├── pptx.rs      # PPTX operations
-        └── pdf.rs       # PDF operations
+│   ├── spec.md
+│   └── superpowers/  # Advanced usage guides
+├── src/
+│   ├── main.rs       # Entry point: MCP server or CLI
+│   ├── lib.rs        # Module exports
+│   ├── server.rs     # MCP #[tool] definitions
+│   ├── cli.rs        # CLI subcommands (clap)
+│   ├── ir/           # Internal Representation (Document, Paragraph, etc.)
+│   ├── engine/       # search, replace, template, diff, complexity
+│   ├── handlers/     # docx/pptx/pdf/xlsx/html/md/csv/pdf_forms
+│   ├── converters/   # Cross-format conversion
+│   ├── batch/        # Rayon-parallel batch processing
+│   ├── validators/   # Document structure validation
+│   ├── ocr/          # Feature-gated OCR (--features ocr)
+│   └── security.rs   # Path validation sandbox
+└── tests/
+    └── common/       # Shared test utilities
 ```
 
 ---
 
 ## Roadmap
 
-**v0.1.0** — XLSX support, HTML read/write, template-based generation
-**v0.2.0** — Document-to-Markdown for RAG, batch processing, text chunking
-**v0.3.0** — WASM target, digital signatures, document comparison
-**v1.0.0** — Production-ready: full format coverage, enterprise security, streaming
+**v0.0.2 ✅** — IR engine, format expansion (XLSX, HTML, MD, CSV), batch processing, CLI, benchmarks, doc comments
+**v0.0.3 🔄** — Multi-page PDF with layout, enhanced template engine, DOCX image insertion, 80%+ test coverage
+**v0.1.0** — WASM target, digital signatures, document comparison, streaming
+**v1.0.0** — Production-ready: full format coverage, enterprise security, OCR
 
 See [docs/implementationplan.md](docs/implementationplan.md) for details.
 
@@ -266,8 +277,8 @@ MIT License — see [LICENSE](LICENSE) for details.
 ## Contributing
 
 Contributions welcome! Areas needing help:
-- Adding XLSX support (via `rust_xlsxwriter` or `lontar`)
-- Improving PDF layout/rendering
-- Template engine for document generation
+- Multi-page PDF layout and rendering
+- Template engine for document generation (nested objects, loops)
+- DOCX image insertion
 - WASM compilation target
-- Additional format support (ODT, CSV, JSON)
+- Additional format support (ODT, JSON)

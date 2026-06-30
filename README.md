@@ -16,41 +16,74 @@ One binary. Zero deps. All formats. Lightning fast.
 
 | Format | Create | Read | Edit | Convert To |
 |--------|--------|------|------|------------|
-| **DOCX** | ✅ | ✅ | ✅ | PDF, Markdown |
-| **PPTX** | ✅ | ✅ | ✅ | Markdown |
-| **PDF** | ✅ | ✅ | ✅ | Text extraction |
-| **XLSX** | 🔜 | 🔜 | 🔜 | 🔜 |
-| **HTML** | 🔜 | 🔜 | 🔜 | 🔜 |
-| **Markdown** | 🔜 | 🔜 | 🔜 | 🔜 |
+| **DOCX** | ✅ | ✅ | ✅ | PDF, Markdown, HTML, JSON |
+| **PPTX** | ✅ | ✅ | ✅ | Markdown, JSON |
+| **PDF** | ✅ | ✅ | ✅ | Text extraction, JSON |
+| **XLSX** | ✅ | ✅ | — | CSV, JSON |
+| **HTML** | ✅ | ✅ | — | JSON |
+| **Markdown** | — | ✅ | — | JSON |
+| **CSV** | — | ✅ | — | JSON |
+| **TXT** | — | ✅ | — | JSON |
 
-### Current Tools (v0.0.1)
+### Unified Tools & Capabilities
 
-**DOCX Tools**
-- `create_document` — Create a new Word document
-- `open_document` — Read document metadata (paragraphs, tables, author)
-- `add_paragraph` — Add formatted text (bold, italic, font size)
-- `add_table` — Add a table with headers and data rows
-- `find_replace_text` — Regex-powered find and replace
-- `document_to_pdf` — Convert DOCX to PDF
-- `document_to_markdown` — Convert DOCX to Markdown
+**Document Intelligence**
+- `open_document` — Open any document and return structured JSON (takes `detail_level`: `full`, `summary`, `metadata_only`)
+- `read_document_text` — Extract plain text from any document
+- `search_document` — Find keywords or regex matches
+- `replace_text` — Regex-powered text replacement (operates on IR)
+- `diff_documents` — LCS paragraph-level document comparison
+- `chunk_for_embedding` — Text chunking for RAG / embeddings
+- `fill_template` — Template variable substitution (takes raw JSON `variables` object)
+- `validate_document` — Inspect document structural soundness
 
-**PPTX Tools**
-- `create_presentation` — Create a new PowerPoint file
-- `open_presentation` — Read presentation metadata (slide count)
-- `add_slide` — Add a title or content slide
-- `add_slide_image` — Reference an image on a slide
-- `presentation_to_pdf` — Convert PPTX to PDF
-- `presentation_to_markdown` — Export slides as Markdown
+**Format Conversion**
+- `convert` — Cross-format conversion (DOCX↔PDF, DOCX→MD, XLS→CSV, etc.)
+- `create_html` — Convert document to styled HTML
 
-**PDF Tools**
-- `create_pdf` — Generate a PDF with text content
-- `open_pdf` — Read PDF metadata (pages, encryption, version)
-- `merge_pdfs` — Combine multiple PDFs into one
-- `extract_pdf_text` — Extract text (full document or specific page)
-- `pdf_replace_text` — Find and replace text in PDF
+**Batch Processing**
+- `batch_convert` — Parallel conversion of a whole directory of documents
+
+**Authoring & Editing**
+- **DOCX**: `create_docx`, `docx_add_paragraph`, `docx_add_table`
+- **PPTX**: `create_pptx`, `pptx_add_slide`
+- **XLSX**: `create_xlsx` (takes raw JSON `sheets` array)
+- **PDF**: `create_pdf`, `merge_pdfs`, `extract_pdf_text`, `list_pdf_fields`, `fill_pdf_form` (takes raw JSON `values` object)
+
+**Metadata & Analysis**
+- `find_tables` — Extract table coordinates and metadata
+- `analyze_document_complexity` — Complexity analysis (OCR needs, page scans)
+
+**AI Features**
+- `ocr_document` — Feature-gated OCR for scanned docs (requires `--features ocr`)
+- `check_ocr_available` — Check OCR engine status
 
 **Utility**
-- `list_capabilities` — List all available tools and server info
+- `list_capabilities` — Category list of all consolidated tools
+
+---
+
+## MCP Resources
+
+`opendoc-mcp` exposes documents directly as read-only MCP resources:
+- `doc://{absolute_path}` — Exposes the plain text content of a document
+- `doc://{absolute_path}/outline` — Exposes the JSON outline of a document (sections, heading hierarchy)
+
+These can be read directly by agents without tool calls using standard resource read requests.
+
+---
+
+## Structured Errors ("Errors as Instructions")
+
+All tool errors return structured JSON payloads to help AI agents recover dynamically:
+```json
+{
+  "error": "Detailed description of the error...",
+  "error_code": "FILE_IO_ERROR",
+  "category": "io",
+  "suggestion": "Verify the file exists at the specified path..."
+}
+```
 
 ---
 

@@ -1,4 +1,5 @@
-use crate::handlers::{docx, pdf, pptx};
+use crate::engine::{search, replace, template, diff};
+use crate::handlers::{self, docx, pdf, pptx, pdf_forms, xlsx};
 use rmcp::{
     model::{ServerCapabilities, ServerInfo},
     serve_server, tool,
@@ -6,143 +7,579 @@ use rmcp::{
     ServerHandler,
 };
 
+macro_rules! validate_path {
+    ($path:expr) => {
+        match crate::security::validate_path(&$path) {
+            Ok(p) => p.to_string_lossy().into_owned(),
+            Err(e) => return serde_json::json!({"error": format!("Security error: {e}")}).to_string(),
+        }
+    };
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct OpendocServer;
 
+// ──────────────────────────────────────────────
+//  DOCUMENT INTELLIGENCE TOOLS
+// ──────────────────────────────────────────────
+
 #[tool(tool_box)]
 impl OpendocServer {
-    // ── DOCX Tools ──
+    // ═══════════════════════════════════════════
+    //  FORMAT-AGNOSTIC IR TOOLS
+    // ═══════════════════════════════════════════
 
-    #[tool(description = "Create a new DOCX document and save to a file path. Returns the path to the created file.")]
-    fn create_document(
-        &self,
-        #[tool(param)]
-        #[schemars(description = "File path to save the document (e.g., /path/to/output.docx)")]
-        file_path: String,
-        #[tool(param)]
-        #[schemars(description = "Optional title for the document")]
-        title: Option<String>,
-    ) -> String {
-        docx::create_document(&file_path, title.as_deref())
-    }
-
-    #[tool(description = "Open an existing DOCX document and return its metadata (pages, paragraphs, etc.)")]
+    #[tool(
+        name = "open_document",
+        description = "Open any supported document (DOCX, PPTX, PDF, XLSX, HTML, MD, CSV, TXT) and return structured JSON layout or content. Set 'detail_level' to 'summary' for outline and metadata only, 'metadata_only' for metadata block only, or 'full' for complete paragraphs, tables, images, metadata, and outline."
+    )]
     fn open_document(
         &self,
         #[tool(param)]
-        #[schemars(description = "File path to the existing document")]
+        #[schemars(description = "File path to the document")]
         file_path: String,
+        #[tool(param)]
+        #[schemars(description = "Level of detail to return: 'summary' (metadata + outline + counts), 'metadata_only' (metadata only), or 'full' (all content including paragraphs and tables)")]
+        detail_level: Option<String>,
     ) -> String {
-        docx::open_document(&file_path)
+        let file_path = validate_path!(file_path);
+        let detail = detail_level.unwrap_or_else(|| "full".to_string());
+        match handlers::load_to_ir(&file_path) {
+            Ok(ir) => {
+                match detail.as_str() {
+                    "metadata_only" => {
+                        serde_json::to_string_pretty(&serde_json::json!({
+                            "success": true,
+                            "path": file_path,
+                            "format": ir.format,
+                            "metadata": ir.metadata,
+                        })).unwrap_or_default()
+                    }
+                    "summary" => {
+                        serde_json::to_string_pretty(&serde_json::json!({
+                            "success": true,
+                            "path": file_path,
+                            "format": ir.format,
+                            "paragraphs": ir.paragraphs.len(),
+                            "tables": ir.tables.len(),
+                            "images": ir.images.len(),
+                            "sections": ir.sections.len(),
+                            "estimated_tokens": ir.estimate_tokens(),
+                            "metadata": ir.metadata,
+                            "outline": ir.outline(),
+                        })).unwrap_or_default()
+                    }
+                    _ => {
+                        serde_json::to_string_pretty(&serde_json::json!({
+                            "success": true,
+                            "path": file_path,
+                            "format": ir.format,
+                            "paragraphs": ir.paragraphs,
+                            "tables": ir.tables,
+                            "images": ir.images,
+                            "sections": ir.sections,
+                            "estimated_tokens": ir.estimate_tokens(),
+                            "metadata": ir.metadata,
+                            "outline": ir.outline(),
+                        })).unwrap_or_default()
+                    }
+                }
+            }
+            Err(e) => map_load_error(&e),
+        }
     }
 
-    #[tool(description = "Add a paragraph with text to a DOCX document at a specific path")]
-    fn add_paragraph(
+    #[tool(description = "Read the full text content of any document (plain text extraction)")]
+    fn read_document_text(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "File path to the document")]
+        file_path: String,
+    ) -> String {
+        let file_path = validate_path!(file_path);
+        match handlers::load_to_ir(&file_path) {
+            Ok(ir) => {
+                let text: Vec<String> = ir.paragraphs.iter().map(|p| p.text.clone()).collect();
+                let content = text.join("\n");
+                serde_json::json!({
+                    "success": true,
+                    "text": content,
+                    "char_count": content.len(),
+                    "est_tokens": ir.estimate_tokens(),
+                }).to_string()
+            }
+            Err(e) => map_load_error(&e),
+        }
+    }
+
+    #[tool(description = "Search for text in a document using keyword or regex")]
+    fn search_document(
         &self,
         #[tool(param)]
         #[schemars(description = "File path to the document")]
         file_path: String,
         #[tool(param)]
-        #[schemars(description = "Text content of the paragraph")]
-        text: String,
+        #[schemars(description = "Search query (plain text or regex pattern)")]
+        query: String,
         #[tool(param)]
-        #[schemars(description = "Optional bold formatting")]
-        bold: Option<bool>,
-        #[tool(param)]
-        #[schemars(description = "Optional italic formatting")]
-        italic: Option<bool>,
-        #[tool(param)]
-        #[schemars(description = "Optional font size in points (e.g., 12)")]
-        font_size: Option<f32>,
+        #[schemars(description = "If true, treat query as a regex pattern")]
+        use_regex: Option<bool>,
     ) -> String {
-        docx::add_paragraph(&file_path, &text, bold, italic, font_size)
+        let file_path = validate_path!(file_path);
+        match handlers::load_to_ir(&file_path) {
+            Ok(ir) => {
+                let results = search::search_document(&ir, &query, use_regex.unwrap_or(false));
+                serde_json::json!({
+                    "success": true,
+                    "query": query,
+                    "matches": results.len(),
+                    "results": results,
+                }).to_string()
+            }
+            Err(e) => map_load_error(&e),
+        }
     }
 
-    #[tool(description = "Add a table to a DOCX document")]
-    fn add_table(
+    #[tool(description = "Find and replace text in any document (supports regex)")]
+    fn replace_text(
         &self,
         #[tool(param)]
         #[schemars(description = "File path to the document")]
         file_path: String,
         #[tool(param)]
-        #[schemars(description = "Headers for the table as a JSON array of strings")]
-        headers: Vec<String>,
-        #[tool(param)]
-        #[schemars(description = "Table data as a JSON array of arrays of strings")]
-        data: Vec<Vec<String>>,
-    ) -> String {
-        docx::add_table(&file_path, &headers, &data)
-    }
-
-    #[tool(description = "Find and replace text in a DOCX document")]
-    fn find_replace_text(
-        &self,
-        #[tool(param)]
-        #[schemars(description = "File path to the document")]
-        file_path: String,
-        #[tool(param)]
-        #[schemars(description = "Text to find")]
+        #[schemars(description = "Text or pattern to find")]
         find: String,
         #[tool(param)]
         #[schemars(description = "Replacement text")]
         replace: String,
     ) -> String {
-        docx::find_replace_text(&file_path, &find, &replace)
+        let file_path = validate_path!(file_path);
+        let path = std::path::Path::new(&file_path);
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        match ext.as_str() {
+            "docx" => {
+                handlers::docx::find_replace_text(&file_path, &find, &replace)
+            }
+            "pdf" => {
+                handlers::pdf::replace_text(&file_path, &find, &replace)
+            }
+            "txt" | "text" => {
+                match std::fs::read_to_string(&file_path) {
+                    Ok(content) => {
+                        let re = match regex::RegexBuilder::new(&find).size_limit(1_000_000).build() {
+                            Ok(r) => r,
+                            Err(e) => return serde_json::json!({"error": format!("invalid regex: {e}")}).to_string(),
+                        };
+                        let new_content = re.replace_all(&content, &replace).to_string();
+                        let count = re.find_iter(&content).count();
+                        match std::fs::write(&file_path, new_content) {
+                            Ok(_) => serde_json::json!({
+                                "success": true,
+                                "replacements": count,
+                                "persisted": true,
+                            }).to_string(),
+                            Err(e) => serde_json::json!({"error": format!("Failed to write file: {e}")}).to_string(),
+                        }
+                    }
+                    Err(e) => serde_json::json!({"error": format!("Failed to read file: {e}")}).to_string(),
+                }
+            }
+            _ => {
+                match handlers::load_to_ir(&file_path) {
+                    Ok(mut ir) => {
+                        let count = replace::replace_text(&mut ir, &find, &replace);
+                        // Try to persist via generic export for writable formats
+                        let writable = ["md", "markdown", "html", "csv", "txt", "text", "json", "docx"];
+                        if writable.contains(&ext.as_str()) && count > 0 {
+                            match crate::converters::export(&ir, &ext, &file_path) {
+                                Ok(result) => serde_json::json!({
+                                    "success": true,
+                                    "replacements": count,
+                                    "persisted": true,
+                                    "output_size": result.size_bytes,
+                                }).to_string(),
+                                Err(e) => serde_json::json!({
+                                    "success": true,
+                                    "replacements": count,
+                                    "persisted": false,
+                                    "note": format!("IR modified but failed to save: {e}"),
+                                }).to_string(),
+                            }
+                        } else {
+                            serde_json::json!({
+                                "success": true,
+                                "replacements": count,
+                                "persisted": false,
+                                "note": format!("Replace operated on extracted text in-memory. Saving back to format '{ext}' is not supported yet.")
+                            }).to_string()
+                        }
+                    }
+                    Err(e) => serde_json::json!({"error": e.to_string()}).to_string(),
+                }
+            }
+        }
     }
 
-    #[tool(description = "Convert a DOCX document to PDF")]
-    fn document_to_pdf(
+    #[tool(description = "Compare two documents and return a structured diff")]
+    fn diff_documents(
         &self,
         #[tool(param)]
-        #[schemars(description = "Source DOCX file path")]
-        source: String,
+        #[schemars(description = "First document path")]
+        file_a: String,
         #[tool(param)]
-        #[schemars(description = "Output PDF file path")]
-        output: String,
+        #[schemars(description = "Second document path")]
+        file_b: String,
     ) -> String {
-        docx::to_pdf(&source, &output)
+        let file_a = validate_path!(file_a);
+        let file_b = validate_path!(file_b);
+        let (doc_a, doc_b) = match (
+            handlers::load_to_ir(&file_a),
+            handlers::load_to_ir(&file_b),
+        ) {
+            (Ok(a), Ok(b)) => (a, b),
+            (Err(e), _) => return serde_json::json!({"error": format!("Failed to load file_a: {e}")}).to_string(),
+            (_, Err(e)) => return serde_json::json!({"error": format!("Failed to load file_b: {e}")}).to_string(),
+        };
+        let result = diff::diff_documents(&doc_a, &doc_b);
+        serde_json::to_string_pretty(&result).unwrap_or_default()
     }
 
-    #[tool(description = "Convert a DOCX document to Markdown")]
-    fn document_to_markdown(
+    #[tool(description = "Chunk document for RAG embedding pipelines")]
+    fn chunk_for_embedding(
         &self,
         #[tool(param)]
-        #[schemars(description = "Source DOCX file path")]
-        source: String,
-        #[tool(param)]
-        #[schemars(description = "Output Markdown file path")]
-        output: String,
-    ) -> String {
-        docx::to_markdown(&source, &output)
-    }
-
-    // ── PPTX Tools ──
-
-    #[tool(description = "Create a new PowerPoint presentation and save to a file path")]
-    fn create_presentation(
-        &self,
-        #[tool(param)]
-        #[schemars(description = "File path to save the presentation (e.g., /path/to/output.pptx)")]
+        #[schemars(description = "File path to the document")]
         file_path: String,
         #[tool(param)]
-        #[schemars(description = "Optional title for the presentation")]
+        #[schemars(description = "Maximum tokens per chunk (default 512)")]
+        max_tokens: Option<usize>,
+    ) -> String {
+        let file_path = validate_path!(file_path);
+        match handlers::load_to_ir(&file_path) {
+            Ok(ir) => {
+                let chunks = ir.chunk_for_embedding(max_tokens.unwrap_or(512));
+                serde_json::json!({
+                    "success": true,
+                    "chunk_count": chunks.len(),
+                    "chunks": chunks,
+                }).to_string()
+            }
+            Err(e) => serde_json::json!({"error": e.to_string()}).to_string(),
+        }
+    }
+
+    #[tool(description = "Fill {{placeholders}} in a document with values")]
+    fn fill_template(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "File path to the template document")]
+        file_path: String,
+        #[tool(param)]
+        #[schemars(description = "JSON object of key-value pairs to fill")]
+        variables: serde_json::Value,
+    ) -> String {
+        let file_path = validate_path!(file_path);
+        let vars: Vec<(String, String)> = if let serde_json::Value::Object(map) = variables {
+            map.into_iter()
+                .map(|(k, v)| {
+                    let val_str = match v {
+                        serde_json::Value::String(s) => s,
+                        serde_json::Value::Null => "".to_string(),
+                        other => other.to_string(),
+                    };
+                    (k, val_str)
+                })
+                .collect()
+        } else {
+            return serde_json::json!({"error": "variables must be a JSON object"}).to_string();
+        };
+
+        let path = std::path::Path::new(&file_path);
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        match ext.as_str() {
+            "docx" => {
+                let mut doc = match rdocx::Document::open(&file_path) {
+                    Ok(d) => d,
+                    Err(e) => return serde_json::json!({"error": e.to_string()}).to_string(),
+                };
+                let map: std::collections::HashMap<&str, &str> = vars.iter()
+                    .map(|(k, v)| (k.as_str(), v.as_str()))
+                    .collect();
+                let count = doc.replace_all(&map);
+                match doc.save(&file_path) {
+                    Ok(_) => serde_json::json!({
+                        "success": true,
+                        "replacements": count,
+                        "persisted": true,
+                    }).to_string(),
+                    Err(e) => serde_json::json!({"error": e.to_string()}).to_string(),
+                }
+            }
+            "txt" | "text" => {
+                match std::fs::read_to_string(&file_path) {
+                    Ok(content) => {
+                        let mut new_content = content;
+                        let mut count = 0;
+                        for (key, value) in &vars {
+                            let placeholder = format!("{{{{{}}}}}", key);
+                            if new_content.contains(&placeholder) {
+                                let occurrences = new_content.matches(&placeholder).count();
+                                new_content = new_content.replace(&placeholder, value);
+                                count += occurrences;
+                            }
+                        }
+                        match std::fs::write(&file_path, new_content) {
+                            Ok(_) => serde_json::json!({
+                                "success": true,
+                                "replacements": count,
+                                "persisted": true,
+                            }).to_string(),
+                            Err(e) => serde_json::json!({"error": format!("Failed to write file: {e}")}).to_string(),
+                        }
+                    }
+                    Err(e) => serde_json::json!({"error": format!("Failed to read file: {e}")}).to_string(),
+                }
+            }
+            _ => {
+                match handlers::load_to_ir(&file_path) {
+                    Ok(mut ir) => {
+                        let count = template::fill_template(&mut ir, &vars);
+                        // Try to persist via generic export for writable formats
+                        let writable = ["md", "markdown", "html", "csv", "txt", "text", "json", "docx"];
+                        if writable.contains(&ext.as_str()) && count > 0 {
+                            match crate::converters::export(&ir, &ext, &file_path) {
+                                Ok(result) => serde_json::json!({
+                                    "success": true,
+                                    "replacements": count,
+                                    "persisted": true,
+                                    "output_size": result.size_bytes,
+                                }).to_string(),
+                                Err(e) => serde_json::json!({
+                                    "success": true,
+                                    "replacements": count,
+                                    "persisted": false,
+                                    "note": format!("IR modified but failed to save: {e}"),
+                                }).to_string(),
+                            }
+                        } else {
+                            serde_json::json!({
+                                "success": true,
+                                "replacements": count,
+                                "persisted": false,
+                                "note": format!("Template filled in-memory. Saving back to format '{ext}' is not supported yet.")
+                            }).to_string()
+                        }
+                    }
+                    Err(e) => serde_json::json!({"error": e.to_string()}).to_string(),
+                }
+            }
+        }
+    }
+
+    #[tool(description = "Validate document structure and integrity")]
+    fn validate_document(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "File path to the document")]
+        file_path: String,
+    ) -> String {
+        let file_path = validate_path!(file_path);
+        match handlers::load_to_ir(&file_path) {
+            Ok(ir) => {
+                let result = crate::validators::validate_document(&ir);
+                serde_json::to_string_pretty(&result).unwrap_or_default()
+            }
+            Err(e) => serde_json::json!({"error": e.to_string()}).to_string(),
+        }
+    }
+
+    // ═══════════════════════════════════════════
+    //  CONVERSION TOOLS
+    // ═══════════════════════════════════════════
+
+    #[tool(description = "Convert a document from one format to another")]
+    fn convert(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "Source file path")]
+        source: String,
+        #[tool(param)]
+        #[schemars(description = "Target format (pdf, md, html, csv, txt, json)")]
+        target_format: String,
+        #[tool(param)]
+        #[schemars(description = "Output file path")]
+        output: String,
+    ) -> String {
+        let source = validate_path!(source);
+        let output = validate_path!(output);
+        match crate::converters::convert(&source, &target_format, &output) {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => serde_json::json!({"error": e.to_string()}).to_string(),
+        }
+    }
+
+    #[tool(description = "Create an HTML document from text content")]
+    fn create_html(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "File path to save the HTML")]
+        file_path: String,
+        #[tool(param)]
+        #[schemars(description = "Body text content (paragraphs separated by newlines)")]
+        body: String,
+        #[tool(param)]
+        #[schemars(description = "Optional HTML title")]
         title: Option<String>,
     ) -> String {
+        let file_path = validate_path!(file_path);
+        let title = title.unwrap_or_else(|| "Document".to_string());
+        let escaped_body = body
+            .replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;");
+        let paragraphs: String = escaped_body
+            .split('\n')
+            .filter(|l| !l.is_empty())
+            .map(|p| format!("    <p>{}</p>\n", p.trim()))
+            .collect();
+        let html = format!(
+            "<!DOCTYPE html>\n\
+            <html lang=\"en\">\n\
+            <head>\n\
+            <meta charset=\"utf-8\">\n\
+            <title>{}</title>\n\
+            </head>\n\
+            <body>\n\
+            {}\
+            </body>\n\
+            </html>\n",
+            title, paragraphs
+        );
+        match std::fs::write(&file_path, &html) {
+            Ok(_) => serde_json::json!({
+                "success": true,
+                "path": file_path,
+                "format": "html",
+                "size_bytes": html.len(),
+            }).to_string(),
+            Err(e) => serde_json::json!({"error": format!("Failed to write HTML: {e}")}).to_string(),
+        }
+    }
+
+    // ═══════════════════════════════════════════
+    //  BATCH TOOLS
+    // ═══════════════════════════════════════════
+
+    #[tool(description = "Batch convert all files in a directory matching a pattern")]
+    fn batch_convert(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "Input directory path")]
+        input_dir: String,
+        #[tool(param)]
+        #[schemars(description = "File pattern (e.g., *.docx, *.pdf)")]
+        pattern: String,
+        #[tool(param)]
+        #[schemars(description = "Target format")]
+        target_format: String,
+        #[tool(param)]
+        #[schemars(description = "Output directory")]
+        output_dir: String,
+    ) -> String {
+        let input_dir = validate_path!(input_dir);
+        let output_dir = validate_path!(output_dir);
+        let results = crate::batch::batch_convert(&input_dir, &pattern, &target_format, &output_dir);
+        serde_json::to_string_pretty(&results).unwrap_or_default()
+    }
+
+    // ═══════════════════════════════════════════
+    //  DOCX TOOLS
+    // ═══════════════════════════════════════════
+
+    #[tool(description = "Create a new DOCX document")]
+    fn create_docx(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "File path to save the document")]
+        file_path: String,
+        #[tool(param)]
+        #[schemars(description = "Optional title")]
+        title: Option<String>,
+    ) -> String {
+        let file_path = validate_path!(file_path);
+        docx::create_document(&file_path, title.as_deref())
+    }
+
+    #[tool(description = "Add a paragraph with formatting to a DOCX")]
+    fn docx_add_paragraph(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "File path to the document")]
+        file_path: String,
+        #[tool(param)]
+        #[schemars(description = "Text content")]
+        text: String,
+        #[tool(param)]
+        #[schemars(description = "Optional bold")]
+        bold: Option<bool>,
+        #[tool(param)]
+        #[schemars(description = "Optional italic")]
+        italic: Option<bool>,
+        #[tool(param)]
+        #[schemars(description = "Optional font size in points")]
+        font_size: Option<f32>,
+    ) -> String {
+        let file_path = validate_path!(file_path);
+        docx::add_paragraph(&file_path, &text, bold, italic, font_size)
+    }
+
+    #[tool(description = "Add a table to a DOCX document")]
+    fn docx_add_table(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "File path to the document")]
+        file_path: String,
+        #[tool(param)]
+        #[schemars(description = "Headers (JSON array of strings)")]
+        headers: Vec<String>,
+        #[tool(param)]
+        #[schemars(description = "Data rows (JSON array of arrays)")]
+        data: Vec<Vec<String>>,
+    ) -> String {
+        let file_path = validate_path!(file_path);
+        docx::add_table(&file_path, &headers, &data)
+    }
+
+    // ═══════════════════════════════════════════
+    //  PPTX TOOLS
+    // ═══════════════════════════════════════════
+
+    #[tool(description = "Create a new PowerPoint presentation")]
+    fn create_pptx(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "File path to save the presentation")]
+        file_path: String,
+        #[tool(param)]
+        #[schemars(description = "Optional title")]
+        title: Option<String>,
+    ) -> String {
+        let file_path = validate_path!(file_path);
         pptx::create_presentation(&file_path, title.as_deref())
     }
 
-    #[tool(description = "Open an existing presentation and return its metadata")]
-    fn open_presentation(
-        &self,
-        #[tool(param)]
-        #[schemars(description = "File path to the existing presentation")]
-        file_path: String,
-    ) -> String {
-        pptx::open_presentation(&file_path)
-    }
-
-    #[tool(description = "Add a slide to a presentation with a title and optional body text")]
-    fn add_slide(
+    #[tool(description = "Add a slide with title and optional body bullet points")]
+    fn pptx_add_slide(
         &self,
         #[tool(param)]
         #[schemars(description = "File path to the presentation")]
@@ -151,136 +588,233 @@ impl OpendocServer {
         #[schemars(description = "Slide title")]
         title: String,
         #[tool(param)]
-        #[schemars(description = "Optional body content (bullet points as JSON array)")]
+        #[schemars(description = "Optional bullet point content (JSON array)")]
         body: Option<Vec<String>>,
     ) -> String {
+        let file_path = validate_path!(file_path);
         pptx::add_slide(&file_path, &title, body.as_deref())
     }
 
-    #[tool(description = "Add an image to a slide in a presentation")]
-    fn add_slide_image(
+    // ═══════════════════════════════════════════
+    //  XLSX TOOLS
+    // ═══════════════════════════════════════════
+
+    #[tool(description = "Create a new XLSX workbook with sheets, headers, and data")]
+    fn create_xlsx(
         &self,
         #[tool(param)]
-        #[schemars(description = "File path to the presentation")]
+        #[schemars(description = "File path to save the XLSX")]
         file_path: String,
         #[tool(param)]
-        #[schemars(description = "Slide number (1-based)")]
-        slide_number: u32,
-        #[tool(param)]
-        #[schemars(description = "Path to the image file")]
-        image_path: String,
+        #[schemars(description = "JSON array of sheets: [{\"name\": \"Sheet1\", \"headers\": [\"A\",\"B\"], \"data\": [[\"1\",\"2\"]]}]")]
+        sheets: serde_json::Value,
     ) -> String {
-        pptx::add_slide_image(&file_path, slide_number, &image_path)
+        let file_path = validate_path!(file_path);
+        let sheets: Vec<xlsx::XlsxSheet> = match serde_json::from_value(sheets) {
+            Ok(s) => s,
+            Err(e) => return serde_json::json!({"error": format!("Invalid JSON structure: {e}")}).to_string(),
+        };
+        xlsx::create_xlsx(&file_path, &sheets)
     }
 
-    #[tool(description = "Convert a presentation to PDF")]
-    fn presentation_to_pdf(
-        &self,
-        #[tool(param)]
-        #[schemars(description = "Source PPTX file path")]
-        source: String,
-        #[tool(param)]
-        #[schemars(description = "Output PDF file path")]
-        output: String,
-    ) -> String {
-        pptx::to_pdf(&source, &output)
-    }
+    // ═══════════════════════════════════════════
+    //  PDF TOOLS
+    // ═══════════════════════════════════════════
 
-    #[tool(description = "Export presentation to Markdown text")]
-    fn presentation_to_markdown(
-        &self,
-        #[tool(param)]
-        #[schemars(description = "Source PPTX file path")]
-        source: String,
-    ) -> String {
-        pptx::to_markdown(&source)
-    }
-
-    // ── PDF Tools ──
-
-    #[tool(description = "Create a simple PDF with text content")]
+    #[tool(description = "Create a simple PDF with text")]
     fn create_pdf(
         &self,
         #[tool(param)]
         #[schemars(description = "File path to save the PDF")]
         file_path: String,
         #[tool(param)]
-        #[schemars(description = "Text content for the PDF")]
+        #[schemars(description = "Text content")]
         text: String,
         #[tool(param)]
-        #[schemars(description = "Optional author metadata")]
+        #[schemars(description = "Optional author name")]
         author: Option<String>,
     ) -> String {
+        let file_path = validate_path!(file_path);
         pdf::create_pdf(&file_path, &text, author.as_deref())
     }
 
-    #[tool(description = "Open a PDF and extract its metadata and text content")]
-    fn open_pdf(
-        &self,
-        #[tool(param)]
-        #[schemars(description = "File path to the PDF")]
-        file_path: String,
-    ) -> String {
-        pdf::open_pdf(&file_path)
-    }
-
-    #[tool(description = "Merge multiple PDF files into one")]
+    #[tool(description = "Merge multiple PDFs into one file")]
     fn merge_pdfs(
         &self,
         #[tool(param)]
-        #[schemars(description = "List of source PDF file paths to merge")]
+        #[schemars(description = "List of PDF file paths to merge")]
         sources: Vec<String>,
         #[tool(param)]
         #[schemars(description = "Output PDF file path")]
         output: String,
     ) -> String {
+        let output = validate_path!(output);
+        let sources: Vec<String> = match sources.iter().map(|s| crate::security::validate_path(s)).collect::<Result<Vec<_>, _>>() {
+            Ok(paths) => paths.into_iter().map(|p| p.to_string_lossy().into_owned()).collect(),
+            Err(e) => return serde_json::json!({"error": format!("Security error: {e}")}).to_string(),
+        };
         pdf::merge_pdfs(&sources, &output)
     }
 
-    #[tool(description = "Extract text from a PDF file")]
+    #[tool(description = "Extract text from a PDF (optionally from a specific page)")]
     fn extract_pdf_text(
         &self,
         #[tool(param)]
         #[schemars(description = "File path to the PDF")]
         file_path: String,
         #[tool(param)]
-        #[schemars(description = "Optional page number (0-based) to extract from specific page")]
+        #[schemars(description = "Optional page number (0-based)")]
         page: Option<u32>,
     ) -> String {
+        let file_path = validate_path!(file_path);
         pdf::extract_text(&file_path, page)
     }
 
-    #[tool(description = "Replace text in a PDF document")]
-    fn pdf_replace_text(
+    #[tool(description = "List all PDF form fields (AcroForm) with types, values, and flags")]
+    fn list_pdf_fields(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "File path to the PDF")]
+        file_path: String,
+    ) -> String {
+        let file_path = validate_path!(file_path);
+        match pdf_forms::list_form_fields(&file_path) {
+            Ok(fields) => serde_json::json!({
+                "success": true,
+                "field_count": fields.len(),
+                "fields": fields,
+            }).to_string(),
+            Err(e) => serde_json::json!({"error": e.to_string()}).to_string(),
+        }
+    }
+
+    #[tool(description = "Fill PDF form fields with values (supports AcroForm text, checkbox, and choice fields)")]
+    fn fill_pdf_form(
         &self,
         #[tool(param)]
         #[schemars(description = "File path to the PDF")]
         file_path: String,
         #[tool(param)]
-        #[schemars(description = "Text to find")]
-        find: String,
-        #[tool(param)]
-        #[schemars(description = "Replacement text")]
-        replace: String,
+        #[schemars(description = "JSON object mapping field names to values")]
+        values: serde_json::Value,
     ) -> String {
-        pdf::replace_text(&file_path, &find, &replace)
+        let file_path = validate_path!(file_path);
+        let vals: Vec<(String, String)> = if let serde_json::Value::Object(map) = values {
+            map.into_iter()
+                .map(|(k, v)| {
+                    let val_str = match v {
+                        serde_json::Value::String(s) => s,
+                        serde_json::Value::Null => "".to_string(),
+                        other => other.to_string(),
+                    };
+                    (k, val_str)
+                })
+                .collect()
+        } else {
+            return serde_json::json!({"error": "values must be a JSON object"}).to_string();
+        };
+
+        match pdf_forms::fill_form_fields(&file_path, &vals) {
+            Ok(count) => serde_json::json!({
+                "success": true,
+                "filled": count,
+            }).to_string(),
+            Err(e) => serde_json::json!({"error": e.to_string()}).to_string(),
+        }
     }
 
-    // ── Utility Tools ──
+    // ═══════════════════════════════════════════
+    //  METADATA TOOLS
+    // ═══════════════════════════════════════════
+
+    #[tool(description = "Find all tables in a document and return them as structured JSON")]
+    fn find_tables(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "File path to the document")]
+        file_path: String,
+    ) -> String {
+        let file_path = validate_path!(file_path);
+        match handlers::load_to_ir(&file_path) {
+            Ok(ir) => serde_json::json!({
+                "success": true,
+                "table_count": ir.tables.len(),
+                "tables": ir.tables,
+            }).to_string(),
+            Err(e) => serde_json::json!({"error": e.to_string()}).to_string(),
+        }
+    }
+
+    #[tool(description = "Analyze document complexity: detect scanned PDFs, text density, OCR requirements")]
+    fn analyze_document_complexity(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "File path to the document")]
+        file_path: String,
+    ) -> String {
+        let file_path = validate_path!(file_path);
+        match handlers::load_to_ir(&file_path) {
+            Ok(ir) => {
+                let report = crate::engine::complexity::analyze_complexity(&ir);
+                serde_json::to_string_pretty(&report).unwrap_or_default()
+            }
+            Err(e) => serde_json::json!({"error": e.to_string()}).to_string(),
+        }
+    }
+
+    #[tool(description = "Run OCR on a scanned PDF or image-based document (requires --features ocr)")]
+    fn ocr_document(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "File path to the document")]
+        file_path: String,
+        #[tool(param)]
+        #[schemars(description = "Language code (default: eng). See tesseract docs for supported languages.")]
+        language: Option<String>,
+    ) -> String {
+        let file_path = validate_path!(file_path);
+        match crate::ocr::ocr_document(&file_path, language.as_deref()) {
+            Ok(ir) => serde_json::json!({
+                "success": true,
+                "format": ir.format,
+                "paragraphs": ir.paragraphs.len(),
+                "text": ir.text,
+            }).to_string(),
+            Err(e) => serde_json::json!({"error": e.to_string()}).to_string(),
+        }
+    }
+
+    #[tool(description = "Check if OCR engine is available on this system")]
+    fn check_ocr_available(&self) -> String {
+        serde_json::json!({
+            "available": crate::ocr::is_ocr_available(),
+            "languages": crate::ocr::available_languages(),
+        }).to_string()
+    }
+
+    // ═══════════════════════════════════════════
+    //  UTILITY TOOLS
+    // ═══════════════════════════════════════════
 
     #[tool(description = "List all available tools and their descriptions")]
     fn list_capabilities(&self) -> String {
         serde_json::to_string_pretty(&serde_json::json!({
             "server": "opendoc-mcp",
             "version": env!("CARGO_PKG_VERSION"),
-            "formats": ["DOCX", "PPTX", "PDF"],
-            "tools": [
-                "create_document", "open_document", "add_paragraph", "add_table",
-                "find_replace_text", "document_to_pdf", "document_to_markdown",
-                "create_presentation", "open_presentation", "add_slide",
-                "add_slide_image", "presentation_to_pdf", "presentation_to_markdown",
-                "create_pdf", "open_pdf", "merge_pdfs", "extract_pdf_text", "pdf_replace_text"
-            ]
+            "description": "Rust-native Document Intelligence Engine for AI Agents",
+            "formats": ["docx", "pptx", "pdf", "xlsx", "html", "md", "csv", "txt"],
+            "tool_categories": {
+                "document_intelligence": ["open_document", "read_document_text", "search_document", "replace_text", "diff_documents", "chunk_for_embedding", "fill_template", "validate_document"],
+                "conversion": ["convert", "create_html"],
+                "batch": ["batch_convert"],
+                "docx": ["create_docx", "docx_add_paragraph", "docx_add_table"],
+                "pptx": ["create_pptx", "pptx_add_slide"],
+                "xlsx": ["create_xlsx"],
+                "pdf": ["create_pdf", "merge_pdfs", "extract_pdf_text", "list_pdf_fields", "fill_pdf_form"],
+                "metadata": ["find_tables", "analyze_document_complexity"],
+                "ai_features": ["ocr_document", "check_ocr_available"],
+                "utility": ["list_capabilities"]
+            }
         }))
         .unwrap_or_default()
     }
@@ -291,25 +825,116 @@ impl ServerHandler for OpendocServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
             instructions: Some(
-                "Opendoc MCP Server — High-performance document CRUD for AI agents. \
-                Supports DOCX, PPTX, and PDF formats. \
-                Use the tools below to create, read, edit, and convert documents."
+                "Opendoc MCP Server — Document Intelligence Engine for AI Agents.\n\n\
+                Supports DOCX, PPTX, PDF, XLSX, HTML, MD, CSV, TXT.\n\n\
+                KEY CAPABILITIES:\n\
+                • Open any document → structured JSON with outline, metadata, content\n\
+                • Search, replace, diff, template fill, chunk for RAG\n\
+                • Cross-format conversion (DOCX↔PDF, DOCX→MD, PDF→TXT, etc.)\n\
+                • PDF form field listing and filling (AcroForm)\n\
+                • Document complexity analysis (scanned PDF detection, OCR needs)\n\
+                • OCR for scanned documents (with --features ocr)\n\
+                • Batch processing entire directories\n\
+                • Document validation and statistics\n\n\
+                All operations work on a unified Internal Representation (IR),\n\
+                meaning most tools work on ALL supported formats.\n\n\
+                Use `list_capabilities` to see all available tools."
                     .into(),
             ),
-            capabilities: ServerCapabilities::builder().enable_tools().build(),
+            capabilities: ServerCapabilities::builder().enable_tools().enable_resources().build(),
             ..Default::default()
         }
+    }
+
+    fn list_resources(
+        &self,
+        _request: rmcp::model::PaginatedRequestParam,
+        _context: rmcp::service::RequestContext<rmcp::RoleServer>,
+    ) -> impl std::future::Future<Output = Result<rmcp::model::ListResourcesResult, rmcp::Error>> + Send + '_ {
+        std::future::ready(Ok(rmcp::model::ListResourcesResult::default()))
+    }
+
+    fn read_resource(
+        &self,
+        request: rmcp::model::ReadResourceRequestParam,
+        _context: rmcp::service::RequestContext<rmcp::RoleServer>,
+    ) -> impl std::future::Future<Output = Result<rmcp::model::ReadResourceResult, rmcp::Error>> + Send + '_ {
+        let uri = request.uri.clone();
+        let fut = async move {
+            if !uri.starts_with("doc://") {
+                return Err(rmcp::Error::invalid_request(format!("Invalid resource URI protocol: {}", uri), None));
+            }
+
+            let path_part = &uri["doc://".len()..];
+            let (file_path, is_outline) = if let Some(stripped) = path_part.strip_suffix("/outline") {
+                (stripped, true)
+            } else {
+                (path_part, false)
+            };
+
+            let validated_path = crate::security::validate_path(file_path)
+                .map_err(|e| rmcp::Error::invalid_request(format!("Security validation error: {}", e), None))?;
+            let path_str = validated_path.to_string_lossy().into_owned();
+
+            let ir = handlers::load_to_ir(&path_str)
+                .map_err(|e| rmcp::Error::resource_not_found(format!("Load error: {}", e), None))?;
+
+            let text_content = if is_outline {
+                serde_json::to_string_pretty(&ir.outline())
+                    .unwrap_or_default()
+            } else {
+                let text: Vec<String> = ir.paragraphs.iter().map(|p| p.text.clone()).collect();
+                text.join("\n")
+            };
+
+            Ok(rmcp::model::ReadResourceResult {
+                contents: vec![rmcp::model::ResourceContents::text(text_content, request.uri.clone())],
+            })
+        };
+        fut
     }
 }
 
 impl OpendocServer {
     pub fn new() -> Self {
-        Self::default()
+        Self
     }
 
     pub async fn run(self) -> anyhow::Result<()> {
-        tracing::info!("Starting Opendoc MCP Server via stdio...");
+        tracing::info!("Starting Opendoc Document Intelligence Server via stdio...");
         serve_server(self, stdio()).await?;
         Ok(())
+    }
+}
+
+fn structured_error(code: &str, msg: &str, category: &str, suggestion: &str) -> String {
+    serde_json::json!({
+        "error": msg,
+        "error_code": code,
+        "category": category,
+        "suggestion": suggestion
+    }).to_string()
+}
+
+fn map_load_error(e: &handlers::LoadError) -> String {
+    match e {
+        handlers::LoadError::UnsupportedFormat(ext) => structured_error(
+            "UNSUPPORTED_FORMAT",
+            &format!("Unsupported file extension: '{ext}'"),
+            "validation",
+            "Ensure the file has a supported extension: docx, pptx, pdf, xlsx, html, md, csv, txt."
+        ),
+        handlers::LoadError::IoError(msg) => structured_error(
+            "FILE_IO_ERROR",
+            &format!("Failed to access file: {msg}"),
+            "io",
+            "Verify the file exists at the specified path and that the server has read permissions."
+        ),
+        handlers::LoadError::ParseError(msg) => structured_error(
+            "PARSE_ERROR",
+            &format!("Failed to parse document: {msg}"),
+            "format",
+            "The file may be corrupt or its structure does not match the expected format."
+        ),
     }
 }

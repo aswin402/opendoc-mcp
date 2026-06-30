@@ -532,9 +532,157 @@ Replace text in a PDF document.
 
 ---
 
-### 3.4 Utility Tools
+#### 3.3.6 `list_pdf_fields`
 
-#### 3.4.1 `list_capabilities`
+List all PDF form fields (AcroForm) with types, values, and flags.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `file_path` | `string` | ✅ | File path to the PDF |
+
+**Returns:**
+```json
+{
+  "success": true,
+  "field_count": 5,
+  "fields": [
+    {
+      "name": "form1.name",
+      "partial_name": "name",
+      "field_type": "Tx",
+      "field_type_name": "Text",
+      "value": null,
+      "default_value": null,
+      "page": null,
+      "is_readonly": false,
+      "is_required": true,
+      "options": []
+    }
+  ]
+}
+```
+
+**Errors:**
+- PDF has no AcroForm dictionary
+- PDF is encrypted or corrupt
+
+---
+
+#### 3.3.7 `fill_pdf_form`
+
+Fill PDF form fields with values (supports AcroForm text, checkbox, and choice fields).
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `file_path` | `string` | ✅ | File path to the PDF |
+| `values` | `object` | ✅ | JSON object mapping field names to values |
+
+**Returns:**
+```json
+{
+  "success": true,
+  "filled": 3
+}
+```
+
+**Notes:**
+- Field names must match the fully qualified AcroForm field path
+- Text fields accept any string
+- Button fields accept the export value (e.g., "Yes", "On")
+- Document is saved in-place
+
+---
+
+### 3.4 Document Intelligence Tools
+
+#### 3.4.1 `analyze_document_complexity`
+
+Analyze document complexity: detect scanned PDFs, measure text density, determine OCR requirements.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `file_path` | `string` | ✅ | File path to the document |
+
+**Returns:**
+```json
+{
+  "needs_ocr": false,
+  "reasons": [],
+  "text_density": 2500.0,
+  "estimated_complexity": "Moderate",
+  "page_count": 5,
+  "has_tables": true,
+  "has_images": false,
+  "has_mixed_languages": false,
+  "recommended_pipeline": "text"
+}
+```
+
+**Complexity Levels:**
+- `Simple` — Plain text, single column (use "text" pipeline)
+- `Moderate` — Tables, lists, some formatting (use "spatial" pipeline)
+- `Complex` — Multi-column, dense tables, mixed content (use "spatial" pipeline)
+- `Scanned` — Image-based, needs OCR (use "ocr" pipeline)
+
+---
+
+#### 3.4.2 `ocr_document`
+
+Run OCR on a scanned PDF or image-based document.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `file_path` | `string` | ✅ | File path to the document |
+| `language` | `string` | ❌ | Language code (default: "eng") |
+
+**Returns:**
+```json
+{
+  "success": true,
+  "format": "pdf",
+  "paragraphs": 12,
+  "text": "Extracted text from OCR..."
+}
+```
+
+**Notes:**
+- Requires `--features ocr` at build time
+- System packages: libtesseract-dev (Ubuntu) or tesseract (macOS)
+- Without the feature flag, returns a setup guide
+
+---
+
+#### 3.4.3 `check_ocr_available`
+
+Check if the OCR engine is available on the current system.
+
+**Parameters:** None
+
+**Returns:**
+```json
+{
+  "available": false,
+  "languages": ["eng"]
+}
+```
+
+**Notes:**
+- `available` is always `false` until the real OCR engine is implemented in v0.2.0
+- `languages` lists tesseract language packs detected on the system
+
+---
+
+### 3.5 Utility Tools
+
+#### 3.5.1 `list_capabilities`
 
 List all available tools and their descriptions.
 
@@ -545,27 +693,15 @@ List all available tools and their descriptions.
 {
   "server": "opendoc-mcp",
   "version": "0.0.1",
-  "formats": ["DOCX", "PPTX", "PDF"],
-  "tools": [
-    "create_document",
-    "open_document",
-    "add_paragraph",
-    "add_table",
-    "find_replace_text",
-    "document_to_pdf",
-    "document_to_markdown",
-    "create_presentation",
-    "open_presentation",
-    "add_slide",
-    "add_slide_image",
-    "presentation_to_pdf",
-    "presentation_to_markdown",
-    "create_pdf",
-    "open_pdf",
-    "merge_pdfs",
-    "extract_pdf_text",
-    "pdf_replace_text"
-  ]
+  "description": "Rust-native Document Intelligence Engine for AI Agents",
+  "formats": ["docx", "pptx", "pdf", "xlsx", "html", "md", "csv", "txt"],
+  "tool_categories": {
+    "document_intelligence": ["open_document", "read_document_text", ...],
+    "conversion": ["convert", "to_markdown", ...],
+    "pdf": ["create_pdf", "open_pdf", "merge_pdfs", "extract_pdf_text", "pdf_replace_text", "list_pdf_fields", "fill_pdf_form"],
+    "ai_features": ["ocr_document", "check_ocr_available"],
+    "metadata": ["extract_metadata", "find_tables", "document_statistics", "analyze_document_complexity"]
+  }
 }
 ```
 
@@ -765,4 +901,9 @@ fn main() {
 | `opendoc_mcp::handlers::docx` | Public | DOCX operations |
 | `opendoc_mcp::handlers::pdf` | Public | PDF operations |
 | `opendoc_mcp::handlers::pptx` | Public | PPTX operations |
+| `opendoc_mcp::handlers::xlsx` | Public | XLSX read → IR |
+| `opendoc_mcp::handlers::pdf_forms` | Public | PDF AcroForm listing/filling |
+| `opendoc_mcp::engine::complexity` | Public | Document complexity analysis |
+| `opendoc_mcp::ocr` | Public | OCR pipeline (feature-gated) |
+| `opendoc_mcp::ir` | Public | Internal Document Representation |
 | `opendoc_mcp::types` | Public | Re-exports |

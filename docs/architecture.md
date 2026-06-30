@@ -1,7 +1,7 @@
 # Architecture Document — opendoc-mcp
 
 **Version:** 0.0.1
-**Status:** Draft
+**Status:** Active
 **Last Updated:** 2026-06-28
 
 ---
@@ -104,8 +104,15 @@ src/
 │                        # - Calls server.run()
 │
 ├── lib.rs               # Library root
+│                        # - pub mod ir (Internal Representation)
 │                        # - pub mod handlers
+│                        # - pub mod engine
+│                        # - pub mod converters
+│                        # - pub mod validators
+│                        # - pub mod batch
+│                        # - pub mod ocr
 │                        # - pub mod server
+│                        # - pub mod cli
 │                        # - pub mod types
 │
 ├── server.rs            # MCP Server implementation
@@ -114,33 +121,86 @@ src/
 │                        # - ServerHandler impl (get_info)
 │                        # - new() and run() methods
 │
+├── ir/                  # Internal Representation
+│   ├── mod.rs           # Re-exports
+│   ├── document.rs      # Document, Section structs
+│   ├── elements.rs      # Paragraph, Table, Image, etc.
+│   └── metadata.rs      # Metadata (title, author, form_fields, etc.)
+│
+├── engine/              # IR-based operations
+│   ├── mod.rs           # edit_pipeline, EditOperation
+│   ├── search.rs        # Keyword/regex search
+│   ├── replace.rs       # Find & replace
+│   ├── template.rs      # {{placeholder}} filling
+│   ├── diff.rs          # Document comparison
+│   └── complexity.rs    # Complexity analysis, OCR detection
+│
+├── converters/          # Cross-format conversion
+│   ├── mod.rs           # convert(), xlsx_to_csv, etc.
+│   └── transmutation.rs # Advanced format mapping
+│
+├── validators/          # Document validation
+│
+├── batch/               # Parallel batch processing
+│
+├── ocr/                 # OCR pipeline (feature-gated)
+│   └── mod.rs           # ocr_document, is_ocr_available
+│
 ├── types.rs             # Re-exports (rmcp::*)
-│                        # - Convenience for consumers
 │
 └── handlers/            # Document format handlers
-    ├── mod.rs           # pub mod docx, pdf, pptx
-    │
-    ├── docx.rs          # DOCX operations
-    │                    # Depends on: rdocx, regex
-    │                    # Functions: create_document, open_document,
-    │                    #   add_paragraph, add_table,
-    │                    #   find_replace_text, to_pdf, to_markdown
-    │
-    ├── pdf.rs           # PDF operations
-    │                    # Depends on: lopdf
-    │                    # Functions: create_pdf, open_pdf,
-    │                    #   merge_pdfs, extract_text, replace_text
-    │
-    └── pptx.rs          # PPTX operations
-                         # Depends on: pptx
-                         # Functions: create_presentation,
-                         #   open_presentation, add_slide,
-                         #   add_slide_image, to_pdf, to_markdown
+    ├── mod.rs           # load_to_ir() entry point
+    ├── docx.rs          # rdocx: create, open, edit, convert
+    ├── pdf.rs           # lopdf: create, open, merge, extract
+    ├── pdf_forms.rs     # lopdf: AcroForm list + fill
+    ├── pptx.rs          # pptx: create, open, edit, convert
+    └── xlsx.rs          # calamine: read → IR (tables + sections)
 ```
 
 ---
 
-## 4. Data Flow
+---
+
+## 6. New Feature Modules
+
+### 6.1 PDF Forms (`handlers/pdf_forms.rs`)
+
+Uses lopdf directly to read/write AcroForm fields:
+- `list_form_fields()` — Walks the AcroForm tree, returns all fields with types/values/flags
+- `fill_form_fields()` — Sets /V and /AS entries on field dictionaries
+- No new dependencies (uses existing lopdf)
+- Supports TextField (Tx), CheckBox/Radio (Btn), Choice (Ch), Signature (Sig)
+
+### 6.2 Complexity Analysis (`engine/complexity.rs`)
+
+Pure heuristic analysis on the IR:
+- Detects scanned PDFs (no text + images present)
+- Measures text density (chars/page)
+- Assigns Simple/Moderate/Complex/Scanned level
+- Recommends pipeline (text/spatial/ocr)
+- Zero new dependencies
+
+### 6.3 OCR Pipeline (`ocr/mod.rs`)
+
+Feature-gated behind `--features ocr`:
+- When disabled: returns helpful error with setup instructions
+- When enabled: planned pipeline using pdfium-render + tesseract (v0.2.0)
+- `OcrConfig` struct for language, DPI, and preprocessing options
+
+---
+
+## 7. Feature Flags
+
+| Flag | Default | Purpose | Dependencies Added |
+|------|---------|---------|--------------------|
+| `cli` | ✅ | CLI subcommands | clap |
+| `server` | ✅ | MCP server | rmcp, tokio |
+| `ocr` | ❌ | OCR engine | pdfium-render, tesseract (future) |
+| `wasm` | ❌ | WASM target | wasm-pack (future) |
+
+---
+
+## 8. Data Flow
 
 ### 4.1 Tool Invocation Flow
 
@@ -199,9 +259,9 @@ Handler Function
 
 ---
 
-## 5. Component Details
+## 9. Component Details
 
-### 5.1 Transport Layer (`rmcp`)
+### 9.1 Transport Layer (`rmcp`)
 
 - **Protocol:** JSON-RPC 2.0 over stdio
 - **Transport:** Standard input/output (stdin/stdout)
@@ -214,7 +274,7 @@ The `rmcp` crate handles all MCP protocol details:
 - Tool execution (`tools/call`)
 - Error formatting and protocol-level error codes
 
-### 5.2 Server Layer (`server.rs`)
+### 9.2 Server Layer (`server.rs`)
 
 The `OpendocServer` struct uses `rmcp`'s `#[tool]` attribute macro to register tools:
 
@@ -242,7 +302,7 @@ impl OpendocServer {
 
 **Key pattern:** All tools return `String` (JSON). This keeps the server layer thin — it's just a router.
 
-### 5.3 Handler Layer (`handlers/`)
+### 9.3 Handler Layer (`handlers/`)
 
 Each handler module follows a consistent pattern:
 
@@ -265,7 +325,7 @@ pub fn open_document(file_path: &str) -> String { ... }
 - Execute requested operation
 - Return JSON string (success or error)
 
-### 5.4 Type System (`types.rs`)
+### 9.4 Type System (`types.rs`)
 
 Currently re-exports `rmcp::*` for convenience. In future versions, this module will contain shared types:
 - `DocumentMetadata` — Common metadata struct
@@ -274,22 +334,30 @@ Currently re-exports `rmcp::*` for convenience. In future versions, this module 
 
 ---
 
-## 6. Dependency Graph
+## 10. Dependency Graph
 
 ```
 opendoc-mcp
-├── rmcp (MCP SDK)
+├── rmcp (MCP SDK) [optional, server feature]
 │   ├── tokio (async runtime)
 │   └── serde_json (JSON handling)
 ├── rdocx (DOCX handler)
 │   ├── zip (OOXML packaging)
 │   └── quick-xml (XML parsing)
 ├── pptx (PPTX handler)
-│   └── ... (zip, xml)
+├── ppt-rs (PPTX ECMA-376)
 ├── lopdf (PDF handler)
-│   └── ... (PDF format)
+│   └── pdf_forms (AcroForm)
+├── calamine (XLSX read → IR)
+├── rust_xlsxwriter (XLSX write)
+├── csv (CSV)
 ├── regex (find/replace)
+├── comrak + pulldown-cmark (Markdown)
+├── html5ever + scraper (HTML)
+├── image (image processing)
+├── rayon (parallel batch)
 ├── serde / serde_json (serialization)
+├── clap [optional, cli feature]
 ├── anyhow / thiserror (error handling)
 └── tracing / tracing-subscriber (logging)
 ```
@@ -302,15 +370,17 @@ opendoc-mcp
 | `tokio` | 1 | Async runtime | smol, async-std |
 | `rdocx` | 0.1 | DOCX read/write/convert | docx-rs, docx_rust |
 | `pptx` | 0.1 | PPTX read/write | Custom OPC |
-| `lopdf` | 0.31 | PDF read/write/merge | pdf.rs, printpdf |
-| `regex` | 1 | Find/replace patterns | None |
+| `lopdf` | 0.31 | PDF read/write/merge + AcroForm | pdf.rs, printpdf |
+| `calamine` | 0.24 | XLSX read (pure Rust) | xlsx |
+| `rust_xlsxwriter` | 0.68 | XLSX write | xlsx |
+| `clap` [opt] | 4 | CLI arg parser | None |
 | `serde` | 1 | Serialization | None |
 | `anyhow` | 1 | Error handling | eyre |
 | `tracing` | 0.1 | Logging | log |
 
 ---
 
-## 7. Security Architecture
+## 11. Security Architecture
 
 ### 7.1 Threat Model
 
@@ -348,7 +418,7 @@ opendoc-mcp
 
 ---
 
-## 8. Performance Design
+## 12. Performance Design
 
 ### 8.1 Startup Optimization
 
@@ -380,19 +450,16 @@ Memory (idle)               < 5 MB      ~3.5 MB
 
 ---
 
-## 9. Future Architecture
+## 13. Future Architecture
 
-### 9.1 v0.1.0 — XLSX & HTML Support
+### 13.1 v0.2.0 — OCR & Advanced PDF
 
-```
-handlers/
-├── xlsx.rs      # rust_xlsxwriter for create
-│                # calamine for read
-├── html.rs      # Native HTML parse/generate
-└── template.rs  # JSON → DOCX template engine
-```
+- Real OCR implementation behind `ocr` feature flag
+- PDF form field creation (not just fill)
+- PDF/A validation
+- Image extraction from documents
 
-### 9.2 v0.2.0 — RAG & Batch Processing
+### 13.2 v0.3.0 — WASM & Enterprise
 
 ```
                      ┌─────────────────────┐
@@ -413,7 +480,7 @@ handlers/
                      └─────────────────────┘
 ```
 
-### 9.3 v1.0.0 — WASM & Enterprise
+### 13.3 v1.0.0 — Architecture Modularization
 
 ```
                     ┌──────────────────────┐
@@ -437,7 +504,7 @@ handlers/
 
 ---
 
-## 10. Design Decisions
+## 14. Design Decisions
 
 | Decision | Rationale |
 |----------|-----------|
@@ -445,6 +512,9 @@ handlers/
 | **Each handler is independent** | Adding a format = adding one file, no changes to server.rs |
 | **rdocx over docx-rs** | rdocx has built-in PDF/HTML/MD conversion, larger API surface |
 | **lopdf over printpdf** | lopdf supports reading/editing/merging, not just creation |
+| **calamine over xlsx** | Pure Rust, no C binding, reads both .xlsx and .xls |
 | **Regex for find/replace** | More powerful than plain text; agents can use regex patterns |
 | **No async in handlers** | File I/O is fast enough; async adds complexity without benefit |
+| **IR-centric architecture** | One document model for all formats — add format = add importer |
+| **Feature-gated heavy deps** | OCR deps (pdfium, tesseract) only compile when requested |
 | **No configuration file** | CLI arguments only; keeps the server stateless and simple |

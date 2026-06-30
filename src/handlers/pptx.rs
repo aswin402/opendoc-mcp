@@ -1,11 +1,5 @@
 use pptx::Presentation;
 
-fn pptx_result_to_string<T: serde::Serialize>(result: pptx::PptxResult<T>) -> String {
-    match result {
-        Ok(val) => serde_json::to_string_pretty(&val).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}")),
-        Err(e) => format!("{{\"error\":\"{e}\"}}"),
-    }
-}
 
 /// Create a simple slide with a title text box
 fn create_title_slide_xml(title: &str) -> Vec<u8> {
@@ -60,7 +54,7 @@ fn create_title_slide_xml(title: &str) -> Vec<u8> {
 
 /// Create a content slide with title and body text
 fn create_content_slide_xml(title: &str, body_items: &[String]) -> Vec<u8> {
-    let body_xml: String = body_items.iter().enumerate().map(|(_i, item)| {
+    let body_xml: String = body_items.iter().map(|item| {
         format!(
             r#"<a:p><a:r><a:rPr sz="2800"/><a:t>{}</a:t></a:r></a:p>"#,
             escape_xml(item)
@@ -161,10 +155,10 @@ pub fn create_presentation(file_path: &str, _title: Option<&str>) -> String {
                     "path": file_path,
                     "format": "pptx"
                 }).to_string(),
-                Err(e) => format!("{{\"error\":\"{e}\"}}"),
+                Err(e) => serde_json::json!({"error": e.to_string()}).to_string(),
             }
         }
-        Err(e) => format!("{{\"error\":\"{e}\"}}"),
+        Err(e) => serde_json::json!({"error": e.to_string()}).to_string(),
     }
 }
 
@@ -179,25 +173,25 @@ pub fn open_presentation(file_path: &str) -> String {
             });
             serde_json::to_string_pretty(&info).unwrap_or_default()
         }
-        Err(e) => format!("{{\"error\":\"{e}\"}}"),
+        Err(e) => serde_json::json!({"error": e.to_string()}).to_string(),
     }
 }
 
 pub fn add_slide(file_path: &str, title: &str, body: Option<&[String]>) -> String {
     let mut prs = match Presentation::open(file_path) {
         Ok(p) => p,
-        Err(e) => return format!("{{\"error\":\"{e}\"}}"),
+        Err(e) => return serde_json::json!({"error": e.to_string()}).to_string(),
     };
 
     let layouts = match prs.slide_layouts() {
         Ok(l) => l,
-        Err(e) => return format!("{{\"error\":\"{e}\"}}"),
+        Err(e) => return serde_json::json!({"error": e.to_string()}).to_string(),
     };
 
     // Pick the first layout from available layouts
     let layout = match layouts.first() {
         Some(l) => l.clone(),
-        None => return r#"{"error":"no slide layouts available"}"#.to_string(),
+        None => return serde_json::json!({"error": "no slide layouts available"}).to_string(),
     };
 
     match prs.add_slide(&layout) {
@@ -227,10 +221,10 @@ pub fn add_slide(file_path: &str, title: &str, body: Option<&[String]>) -> Strin
                     "slide_number": slide_idx + 1,
                     "title": title
                 }).to_string(),
-                Err(e) => format!("{{\"error\":\"{e}\"}}"),
+                Err(e) => serde_json::json!({"error": e.to_string()}).to_string(),
             }
         }
-        Err(e) => format!("{{\"error\":\"{e}\"}}"),
+        Err(e) => serde_json::json!({"error": e.to_string()}).to_string(),
     }
 }
 
@@ -256,23 +250,42 @@ pub fn to_pdf(source: &str, _output: &str) -> String {
     }).to_string()
 }
 
+fn html_to_markdown_pptx(html_str: &str) -> String {
+    use scraper::{Html, Selector};
+    let document = Html::parse_document(html_str);
+    let mut parts = Vec::new();
+    
+    let selector = match Selector::parse("h1, h2, h3, h4, h5, h6, p, div, li, br") {
+        Ok(s) => s,
+        Err(_) => return html_str.to_string(),
+    };
+    
+    for el in document.select(&selector) {
+        let tag = el.value().name();
+        let text = el.text().collect::<String>().trim().to_string();
+        if text.is_empty() {
+            if tag == "br" {
+                parts.push("\n".to_string());
+            }
+            continue;
+        }
+        match tag {
+            "h1" => parts.push(format!("\n# {}\n", text)),
+            "h2" => parts.push(format!("\n## {}\n", text)),
+            "h3" | "h4" | "h5" | "h6" => parts.push(format!("\n### {}\n", text)),
+            "li" => parts.push(format!("- {}\n", text)),
+            "p" | "div" => parts.push(format!("{}\n", text)),
+            _ => parts.push(text),
+        }
+    }
+    parts.join("")
+}
+
 pub fn to_markdown(source: &str) -> String {
     match Presentation::open(source) {
         Ok(prs) => {
             let html = prs.export_html().unwrap_or_default();
-            // Simple HTML to Markdown-like conversion
-            let md = html
-                .replace("<div>", "\n")
-                .replace("</div>", "\n")
-                .replace("<h1>", "# ")
-                .replace("</h1>", "\n")
-                .replace("<h2>", "## ")
-                .replace("</h2>", "\n")
-                .replace("<p>", "")
-                .replace("</p>", "\n\n")
-                .replace("<br>", "\n")
-                .replace("<li>", "- ")
-                .replace("</li>", "\n");
+            let md = html_to_markdown_pptx(&html);
 
             let slide_count = prs.slide_count().unwrap_or(0);
             let result = serde_json::json!({
@@ -282,6 +295,28 @@ pub fn to_markdown(source: &str) -> String {
             });
             serde_json::to_string_pretty(&result).unwrap_or_default()
         }
-        Err(e) => format!("{{\"error\":\"{e}\"}}"),
+        Err(e) => serde_json::json!({"error": e.to_string()}).to_string(),
     }
+}
+
+/// Load a PPTX file into the Internal Representation (IR)
+pub fn to_ir(file_path: &str) -> Result<crate::ir::Document, crate::handlers::LoadError> {
+    let prs = Presentation::open(file_path)
+        .map_err(|e| crate::handlers::LoadError::ParseError(e.to_string()))?;
+
+    let mut ir = crate::ir::Document::new("pptx");
+    ir.path = Some(file_path.to_string());
+    ir.metadata.page_count = prs.slide_count().ok().map(|c| c as u32);
+
+    let html = prs.export_html().unwrap_or_default();
+    let text = html_to_markdown_pptx(&html);
+
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if !trimmed.is_empty() && trimmed.len() > 2 {
+            ir.paragraphs.push(crate::ir::elements::Paragraph::new(trimmed));
+        }
+    }
+
+    Ok(ir)
 }

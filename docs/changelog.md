@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.0.9] — 2026-07-02
+
+### Added
+
+#### Enhanced DOCX/PPTX Styling and Layout Options
+- Added complete paragraph and run style controls in DOCX editor (underline, font family, color, highlighting, paragraph alignment, shading/fill color, line spacing, and page break properties).
+- Added table styling in DOCX editor (custom table width percentage, alignment, border style/size/color, header shading, cell shading, and row break prevention).
+- Added slide styling in PPTX editor (slide background solid fill, custom run size, font color, font family, and text alignment).
+- Exposed all style parameters in the MCP server tools `docx_add_paragraph`, `docx_add_table`, and `pptx_add_slide`.
+- Added comprehensive unit tests for DOCX styling (`test_docx_enhanced_styling`) and PPTX styling (`test_pptx_styling_lifecycle`).
+
 ## [0.0.8] — 2026-07-02
 
 ### Added

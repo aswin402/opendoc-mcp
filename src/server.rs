@@ -658,7 +658,7 @@ impl OpendocServer {
         docx::create_document(&file_path, title.as_deref())
     }
 
-    #[tool(description = "Add a paragraph with formatting to a DOCX")]
+    #[tool(description = "Add a paragraph with formatting and layout to a DOCX")]
     fn docx_add_paragraph(
         &self,
         #[tool(param)]
@@ -674,14 +674,60 @@ impl OpendocServer {
         #[schemars(description = "Optional italic")]
         italic: Option<bool>,
         #[tool(param)]
+        #[schemars(description = "Optional underline")]
+        underline: Option<bool>,
+        #[tool(param)]
         #[schemars(description = "Optional font size in points")]
         font_size: Option<f32>,
+        #[tool(param)]
+        #[schemars(description = "Optional font family name")]
+        font_family: Option<String>,
+        #[tool(param)]
+        #[schemars(description = "Optional font color (Hex RGB, e.g. FF0000)")]
+        color: Option<String>,
+        #[tool(param)]
+        #[schemars(description = "Optional font highlight color")]
+        highlight: Option<String>,
+        #[tool(param)]
+        #[schemars(description = "Optional alignment: left, center, right, justify")]
+        alignment: Option<String>,
+        #[tool(param)]
+        #[schemars(description = "Optional shading fill color (Hex RGB)")]
+        shading: Option<String>,
+        #[tool(param)]
+        #[schemars(description = "Optional line spacing in points")]
+        line_spacing: Option<f64>,
+        #[tool(param)]
+        #[schemars(description = "Optional keep with next paragraph")]
+        keep_with_next: Option<bool>,
+        #[tool(param)]
+        #[schemars(description = "Optional keep lines together")]
+        keep_together: Option<bool>,
+        #[tool(param)]
+        #[schemars(description = "Optional page break before paragraph")]
+        page_break_before: Option<bool>,
     ) -> String {
         let file_path = validate_path!(file_path);
-        docx::add_paragraph(&file_path, &text, bold, italic, font_size)
+        docx::add_paragraph(
+            &file_path,
+            &text,
+            bold,
+            italic,
+            underline,
+            font_size,
+            font_family,
+            color,
+            highlight,
+            alignment,
+            shading,
+            line_spacing,
+            keep_with_next,
+            keep_together,
+            page_break_before,
+        )
     }
 
-    #[tool(description = "Add a table to a DOCX document")]
+    #[tool(description = "Add a table to a DOCX document with optional styling")]
     fn docx_add_table(
         &self,
         #[tool(param)]
@@ -693,9 +739,45 @@ impl OpendocServer {
         #[tool(param)]
         #[schemars(description = "Data rows (JSON array of arrays)")]
         data: Vec<Vec<String>>,
+        #[tool(param)]
+        #[schemars(description = "Optional table width percentage (0 to 100)")]
+        width_pct: Option<f64>,
+        #[tool(param)]
+        #[schemars(description = "Optional table alignment: left, center, right, justify")]
+        alignment: Option<String>,
+        #[tool(param)]
+        #[schemars(description = "Optional table border style: none, single, thick, double, dotted, dashed, dotdash, wave")]
+        border_style: Option<String>,
+        #[tool(param)]
+        #[schemars(description = "Optional border size in eighths of a pt")]
+        border_size: Option<u32>,
+        #[tool(param)]
+        #[schemars(description = "Optional border color (Hex RGB, e.g. CCCCCC)")]
+        border_color: Option<String>,
+        #[tool(param)]
+        #[schemars(description = "Optional shading header color (Hex RGB)")]
+        shading_header: Option<String>,
+        #[tool(param)]
+        #[schemars(description = "Optional shading data cell color (Hex RGB)")]
+        shading_data: Option<String>,
+        #[tool(param)]
+        #[schemars(description = "Optional prevent page breaks inside rows")]
+        cant_split: Option<bool>,
     ) -> String {
         let file_path = validate_path!(file_path);
-        docx::add_table(&file_path, &headers, &data)
+        docx::add_table(
+            &file_path,
+            &headers,
+            &data,
+            width_pct,
+            alignment,
+            border_style,
+            border_size,
+            border_color,
+            shading_header,
+            shading_data,
+            cant_split,
+        )
     }
 
     #[tool(description = "Add an image with size options to a DOCX document")]
@@ -737,7 +819,7 @@ impl OpendocServer {
         pptx::create_presentation(&file_path, title.as_deref())
     }
 
-    #[tool(description = "Add a slide with title and optional body bullet points")]
+    #[tool(description = "Add a slide with title, optional body bullet points, and custom layout styling")]
     fn pptx_add_slide(
         &self,
         #[tool(param)]
@@ -749,9 +831,33 @@ impl OpendocServer {
         #[tool(param)]
         #[schemars(description = "Optional bullet point content (JSON array)")]
         body: Option<Vec<String>>,
+        #[tool(param)]
+        #[schemars(description = "Optional slide background color (Hex RGB, e.g. FFFFFF)")]
+        bg_color: Option<String>,
+        #[tool(param)]
+        #[schemars(description = "Optional font size for body points")]
+        font_size: Option<f32>,
+        #[tool(param)]
+        #[schemars(description = "Optional font color (Hex RGB, e.g. 000000)")]
+        font_color: Option<String>,
+        #[tool(param)]
+        #[schemars(description = "Optional font family name")]
+        font_family: Option<String>,
+        #[tool(param)]
+        #[schemars(description = "Optional alignment: left, center, right, justify")]
+        alignment: Option<String>,
     ) -> String {
         let file_path = validate_path!(file_path);
-        pptx::add_slide(&file_path, &title, body.as_deref())
+        pptx::add_slide(
+            &file_path,
+            &title,
+            body.as_deref(),
+            bg_color,
+            font_size,
+            font_color,
+            font_family,
+            alignment,
+        )
     }
 
     // ═══════════════════════════════════════════

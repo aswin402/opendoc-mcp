@@ -47,7 +47,10 @@ Tasks tracked in [Implementation Plan](docs/implementationplan.md).
 
 - [x] Visual Document Diffing (HTML/Markdown highlights)
 
-## 🔜 v0.0.8 — Planned
+## ✅ v0.0.8 — Complete
 
-- [ ] Enhanced DOCX/PPTX styling and layout options
+- [x] Enhanced DOCX/PPTX styling and layout options
+
+## 🔜 v0.0.9 — Planned
+
 - [ ] Scanned PDF OCR integration

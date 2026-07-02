@@ -1,14 +1,79 @@
 use pptx::Presentation;
 use std::io::{Read, Write, Cursor};
 
+fn get_rpr_xml(font_size: Option<f32>, font_color: Option<&str>, font_family: Option<&str>, bold: bool, italic: bool) -> String {
+    let mut attrs = Vec::new();
+    if let Some(sz) = font_size {
+        attrs.push(format!("sz=\"{}\"", (sz * 100.0) as u32));
+    }
+    if bold {
+        attrs.push("b=\"1\"".to_string());
+    }
+    if italic {
+        attrs.push("i=\"1\"".to_string());
+    }
+    
+    let attrs_str = if attrs.is_empty() {
+        String::new()
+    } else {
+        format!(" {}", attrs.join(" "))
+    };
+
+    let mut children = String::new();
+    if let Some(color) = font_color {
+        children.push_str(&format!("<a:solidFill><a:srgbClr val=\"{}\"/></a:solidFill>", color));
+    }
+    if let Some(family) = font_family {
+        children.push_str(&format!("<a:latin typeface=\"{}\"/><a:cs typeface=\"{}\"/>", family, family));
+    }
+
+    if children.is_empty() {
+        format!("<a:rPr{}/>", attrs_str)
+    } else {
+        format!("<a:rPr{}>{}</a:rPr>", attrs_str, children)
+    }
+}
+
+fn get_ppr_xml(alignment: Option<&str>) -> String {
+    if let Some(align) = alignment {
+        let align_val = match align.to_lowercase().as_str() {
+            "center" | "ctr" => "ctr",
+            "right" | "r" => "r",
+            "justify" | "just" => "just",
+            _ => "l",
+        };
+        format!("<a:pPr algn=\"{}\"/>", align_val)
+    } else {
+        String::new()
+    }
+}
+
 /// Create a simple slide with a title text box
-fn create_title_slide_xml(title: &str) -> Vec<u8> {
+fn create_title_slide_xml(
+    title: &str,
+    bg_color: Option<&str>,
+    font_size: Option<f32>,
+    font_color: Option<&str>,
+    font_family: Option<&str>,
+    alignment: Option<&str>,
+) -> Vec<u8> {
+    let bg_xml = bg_color.map(|color| {
+        format!(
+            r#"<p:bg><p:bgPr><a:solidFill><a:srgbClr val="{}"/></a:solidFill><a:effectLst/></p:bgPr></p:bg>"#,
+            color
+        )
+    }).unwrap_or_default();
+
+    let ppr = get_ppr_xml(alignment);
+    let rpr = get_rpr_xml(font_size, font_color, font_family, true, false);
+
     format!(
         r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
        xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
        xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
   <p:cSld>
+    {bg_xml}
     <p:spTree>
       <p:nvGrpSpPr>
         <p:cNvPr id="1" name=""/>
@@ -24,8 +89,8 @@ fn create_title_slide_xml(title: &str) -> Vec<u8> {
         </p:nvSpPr>
         <p:spPr>
           <a:xfrm>
-            <a:off x="914400" y="685800"/>
-            <a:ext cx="8229600" cy="1143000"/>
+            <a:off x="914400" y="2000000"/>
+            <a:ext cx="8229600" cy="3000000"/>
           </a:xfrm>
           <a:prstGeom prst="rect">
             <a:avLst/>
@@ -35,8 +100,9 @@ fn create_title_slide_xml(title: &str) -> Vec<u8> {
           <a:bodyPr/>
           <a:lstStyle/>
           <a:p>
+            {ppr}
             <a:r>
-              <a:rPr sz="4400" b="1"/>
+              {rpr}
               <a:t>{title}</a:t>
             </a:r>
           </a:p>
@@ -48,15 +114,39 @@ fn create_title_slide_xml(title: &str) -> Vec<u8> {
     <a:masterClrMapping/>
   </p:clrMapOvr>
 </p:sld>"#,
-        title = escape_xml(title)
+        title = escape_xml(title),
+        bg_xml = bg_xml,
+        ppr = ppr,
+        rpr = rpr
     ).into_bytes()
 }
 
 /// Create a content slide with title and body text
-fn create_content_slide_xml(title: &str, body_items: &[String]) -> Vec<u8> {
+fn create_content_slide_xml(
+    title: &str,
+    body_items: &[String],
+    bg_color: Option<&str>,
+    font_size: Option<f32>,
+    font_color: Option<&str>,
+    font_family: Option<&str>,
+    alignment: Option<&str>,
+) -> Vec<u8> {
+    let bg_xml = bg_color.map(|color| {
+        format!(
+            r#"<p:bg><p:bgPr><a:solidFill><a:srgbClr val="{}"/></a:solidFill><a:effectLst/></p:bgPr></p:bg>"#,
+            color
+        )
+    }).unwrap_or_default();
+
+    let ppr = get_ppr_xml(alignment);
+    let title_rpr = get_rpr_xml(Some(44.0), font_color, font_family, true, false);
+
+    let body_rpr = get_rpr_xml(font_size.or(Some(28.0)), font_color, font_family, false, false);
     let body_xml: String = body_items.iter().map(|item| {
         format!(
-            r#"<a:p><a:r><a:rPr sz="2800"/><a:t>{}</a:t></a:r></a:p>"#,
+            r#"<a:p>{}<a:r>{}<a:t>{}</a:t></a:r></a:p>"#,
+            ppr,
+            body_rpr,
             escape_xml(item)
         )
     }).collect();
@@ -67,6 +157,7 @@ fn create_content_slide_xml(title: &str, body_items: &[String]) -> Vec<u8> {
        xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
        xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
   <p:cSld>
+    {bg_xml}
     <p:spTree>
       <p:nvGrpSpPr>
         <p:cNvPr id="1" name=""/>
@@ -93,8 +184,9 @@ fn create_content_slide_xml(title: &str, body_items: &[String]) -> Vec<u8> {
           <a:bodyPr/>
           <a:lstStyle/>
           <a:p>
+            {ppr}
             <a:r>
-              <a:rPr sz="4400" b="1"/>
+              {title_rpr}
               <a:t>{title}</a:t>
             </a:r>
           </a:p>
@@ -128,6 +220,9 @@ fn create_content_slide_xml(title: &str, body_items: &[String]) -> Vec<u8> {
   </p:clrMapOvr>
 </p:sld>"#,
         title = escape_xml(title),
+        bg_xml = bg_xml,
+        ppr = ppr,
+        title_rpr = title_rpr,
         body_xml = body_xml
     ).into_bytes()
 }
@@ -179,8 +274,17 @@ pub fn open_presentation(file_path: &str) -> String {
     }
 }
 
-/// Add a slide to an existing presentation with optional body bullet points.
-pub fn add_slide(file_path: &str, title: &str, body: Option<&[String]>) -> String {
+/// Add a slide to an existing presentation with optional body bullet points and styles.
+pub fn add_slide(
+    file_path: &str,
+    title: &str,
+    body: Option<&[String]>,
+    bg_color: Option<String>,
+    font_size: Option<f32>,
+    font_color: Option<String>,
+    font_family: Option<String>,
+    alignment: Option<String>,
+) -> String {
     let mut prs = match Presentation::open(file_path) {
         Ok(p) => p,
         Err(e) => return serde_json::json!({"error": e.to_string()}).to_string(),
@@ -205,12 +309,34 @@ pub fn add_slide(file_path: &str, title: &str, body: Option<&[String]>) -> Strin
             // Determine XML content based on whether we have body
             let xml = if let Some(body_items) = body {
                 if body_items.is_empty() {
-                    create_title_slide_xml(title)
+                    create_title_slide_xml(
+                        title,
+                        bg_color.as_deref(),
+                        font_size,
+                        font_color.as_deref(),
+                        font_family.as_deref(),
+                        alignment.as_deref(),
+                    )
                 } else {
-                    create_content_slide_xml(title, body_items)
+                    create_content_slide_xml(
+                        title,
+                        body_items,
+                        bg_color.as_deref(),
+                        font_size,
+                        font_color.as_deref(),
+                        font_family.as_deref(),
+                        alignment.as_deref(),
+                    )
                 }
             } else {
-                create_title_slide_xml(title)
+                create_title_slide_xml(
+                    title,
+                    bg_color.as_deref(),
+                    font_size,
+                    font_color.as_deref(),
+                    font_family.as_deref(),
+                    alignment.as_deref(),
+                )
             };
 
             // Set the slide content
@@ -548,4 +674,40 @@ pub fn to_ir(file_path: &str) -> Result<crate::ir::Document, crate::handlers::Lo
     }
 
     Ok(ir)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_pptx_styling_lifecycle() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_styling.pptx");
+        let p = path.to_str().unwrap();
+
+        // Create presentation
+        let res = create_presentation(p, None);
+        assert!(res.contains("\"success\":true"));
+
+        // Add styled slide
+        let body_items = vec!["Point A".to_string(), "Point B".to_string()];
+        let res_slide = add_slide(
+            p,
+            "My Styled Slide",
+            Some(&body_items),
+            Some("FFCDD2".to_string()),
+            Some(32.0),
+            Some("0000FF".to_string()),
+            Some("Courier New".to_string()),
+            Some("center".to_string()),
+        );
+        assert!(res_slide.contains("\"success\":true"));
+
+        // Verify PPTX slide count is 2 (1 initial title slide, 1 added slide)
+        let info = open_presentation(p);
+        assert!(info.contains("\"slides\": 2"));
+
+        let _ = std::fs::remove_file(path);
+    }
 }

@@ -37,13 +37,22 @@ pub fn open_document(file_path: &str) -> String {
 }
 
 /// Append a formatted paragraph to an existing DOCX document.
-/// Supports bold, italic, and font size options.
 pub fn add_paragraph(
     file_path: &str,
     text: &str,
     bold: Option<bool>,
     italic: Option<bool>,
+    underline: Option<bool>,
     font_size: Option<f32>,
+    font_family: Option<String>,
+    color: Option<String>,
+    highlight: Option<String>,
+    alignment: Option<String>,
+    shading: Option<String>,
+    line_spacing: Option<f64>,
+    keep_with_next: Option<bool>,
+    keep_together: Option<bool>,
+    page_break_before: Option<bool>,
 ) -> String {
     let mut doc = match Document::open(file_path) {
         Ok(d) => d,
@@ -51,6 +60,36 @@ pub fn add_paragraph(
     };
 
     let mut p = doc.add_paragraph("");
+
+    if let Some(align_str) = alignment {
+        let align = match align_str.to_lowercase().as_str() {
+            "left" => Some(rdocx::Alignment::Left),
+            "center" => Some(rdocx::Alignment::Center),
+            "right" => Some(rdocx::Alignment::Right),
+            "justify" => Some(rdocx::Alignment::Justify),
+            _ => None,
+        };
+        if let Some(a) = align {
+            p = p.alignment(a);
+        }
+    }
+
+    if let Some(ref shd) = shading {
+        p = p.shading(shd);
+    }
+    if let Some(spacing) = line_spacing {
+        p = p.line_spacing(spacing);
+    }
+    if keep_with_next.unwrap_or(false) {
+        p = p.keep_with_next(true);
+    }
+    if keep_together.unwrap_or(false) {
+        p = p.keep_together(true);
+    }
+    if page_break_before.unwrap_or(false) {
+        p = p.page_break_before(true);
+    }
+
     let mut run = p.add_run(text);
     if bold.unwrap_or(false) {
         run = run.bold(true);
@@ -58,8 +97,20 @@ pub fn add_paragraph(
     if italic.unwrap_or(false) {
         run = run.italic(true);
     }
+    if underline.unwrap_or(false) {
+        run = run.underline(true);
+    }
     if let Some(sz) = font_size {
-        let _ = run.size(sz as f64);
+        run = run.size(sz as f64);
+    }
+    if let Some(ref family) = font_family {
+        run = run.font(family);
+    }
+    if let Some(ref col) = color {
+        run = run.color(col);
+    }
+    if let Some(ref high) = highlight {
+        let _ = run.highlight(high);
     }
 
     match doc.save(file_path) {
@@ -68,8 +119,20 @@ pub fn add_paragraph(
     }
 }
 
-/// Insert a table with headers and data rows into a DOCX document.
-pub fn add_table(file_path: &str, headers: &[String], data: &[Vec<String>]) -> String {
+/// Insert a table with headers and data rows into a DOCX document with optional styling.
+pub fn add_table(
+    file_path: &str,
+    headers: &[String],
+    data: &[Vec<String>],
+    width_pct: Option<f64>,
+    alignment: Option<String>,
+    border_style: Option<String>,
+    border_size: Option<u32>,
+    border_color: Option<String>,
+    shading_header: Option<String>,
+    shading_data: Option<String>,
+    cant_split: Option<bool>,
+) -> String {
     let mut doc = match Document::open(file_path) {
         Ok(d) => d,
         Err(e) => return serde_json::json!({"error": e.to_string()}).to_string(),
@@ -80,19 +143,68 @@ pub fn add_table(file_path: &str, headers: &[String], data: &[Vec<String>]) -> S
 
     let mut table = doc.add_table(rows, cols);
 
+    if let Some(pct) = width_pct {
+        table = table.width_pct(pct);
+    }
+
+    if let Some(align_str) = alignment {
+        let align = match align_str.to_lowercase().as_str() {
+            "left" => Some(rdocx::Alignment::Left),
+            "center" => Some(rdocx::Alignment::Center),
+            "right" => Some(rdocx::Alignment::Right),
+            "justify" => Some(rdocx::Alignment::Justify),
+            _ => None,
+        };
+        if let Some(a) = align {
+            table = table.alignment(a);
+        }
+    }
+
+    if let Some(bs_str) = border_style {
+        let bs = match bs_str.to_lowercase().as_str() {
+            "none" => Some(rdocx::BorderStyle::None),
+            "single" => Some(rdocx::BorderStyle::Single),
+            "thick" => Some(rdocx::BorderStyle::Thick),
+            "double" => Some(rdocx::BorderStyle::Double),
+            "dotted" => Some(rdocx::BorderStyle::Dotted),
+            "dashed" => Some(rdocx::BorderStyle::Dashed),
+            "dotdash" => Some(rdocx::BorderStyle::DotDash),
+            "wave" => Some(rdocx::BorderStyle::Wave),
+            _ => None,
+        };
+        if let Some(b) = bs {
+            table = table.borders(b, border_size.unwrap_or(4), &border_color.clone().unwrap_or_else(|| "CCCCCC".to_string()));
+        }
+    }
+
     // Set headers
     for (col, header) in headers.iter().enumerate() {
         if let Some(mut cell) = table.cell(0, col) {
             cell.set_text(header);
+            if let Some(ref color) = shading_header {
+                let _ = cell.shading(color);
+            }
         }
     }
 
     // Set data
     for (row_idx, row_data) in data.iter().enumerate() {
+        let current_row_idx = row_idx + 1;
+        
+        // Apply row property cant_split if requested
+        if cant_split.unwrap_or(false) {
+            if let Some(row) = table.row(current_row_idx) {
+                let _ = row.cant_split();
+            }
+        }
+
         for (col_idx, cell_text) in row_data.iter().enumerate() {
             if col_idx < cols {
-                    if let Some(mut cell) = table.cell(row_idx + 1, col_idx) {
+                if let Some(mut cell) = table.cell(current_row_idx, col_idx) {
                     cell.set_text(cell_text);
+                    if let Some(ref color) = shading_data {
+                        let _ = cell.shading(color);
+                    }
                 }
             }
         }
@@ -285,13 +397,41 @@ mod tests {
         assert!(info.contains("\"paragraphs\": 1"));
 
         // 3. Add paragraph
-        let res_p = add_paragraph(p, "New Paragraph", Some(true), Some(false), Some(14.0));
+        let res_p = add_paragraph(
+            p,
+            "New Paragraph",
+            Some(true),
+            Some(false),
+            Some(false), // underline
+            Some(14.0), // font size
+            None, // font family
+            None, // color
+            None, // highlight
+            None, // alignment
+            None, // shading
+            None, // line spacing
+            None, // keep with next
+            None, // keep together
+            None, // page break before
+        );
         assert!(res_p.contains("\"success\":true"));
 
         // 4. Add table
         let headers = vec!["ColA".to_string(), "ColB".to_string()];
         let data = vec![vec!["A1".to_string(), "B1".to_string()]];
-        let res_t = add_table(p, &headers, &data);
+        let res_t = add_table(
+            p,
+            &headers,
+            &data,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
         assert!(res_t.contains("\"success\":true"));
 
         // 5. Find and replace
@@ -331,5 +471,60 @@ mod tests {
         let _ = std::fs::remove_file(path);
         let _ = std::fs::remove_file(img_path);
         let _ = std::fs::remove_dir_all(out_img_dir);
+    }
+
+    #[test]
+    fn test_docx_enhanced_styling() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_docx_styling.docx");
+        let p = path.to_str().unwrap();
+
+        // Create document
+        let _ = create_document(p, Some("Styling Test"));
+
+        // Add styled paragraph
+        let res_p = add_paragraph(
+            p,
+            "Styled text",
+            Some(true),
+            Some(true),
+            Some(true), // underline
+            Some(18.0),
+            Some("Arial".to_string()),
+            Some("FF0000".to_string()),
+            Some("yellow".to_string()),
+            Some("center".to_string()),
+            Some("F0F0F0".to_string()),
+            Some(1.5),
+            Some(true),
+            Some(true),
+            Some(true),
+        );
+        assert!(res_p.contains("\"success\":true"));
+
+        // Add styled table
+        let headers = vec!["Col 1".to_string(), "Col 2".to_string()];
+        let data = vec![vec!["Data 1".to_string(), "Data 2".to_string()]];
+        let res_t = add_table(
+            p,
+            &headers,
+            &data,
+            Some(80.0),
+            Some("center".to_string()),
+            Some("single".to_string()),
+            Some(8),
+            Some("FF0000".to_string()),
+            Some("CCCCCC".to_string()),
+            Some("EEEEEE".to_string()),
+            Some(true),
+        );
+        assert!(res_t.contains("\"success\":true"));
+
+        // Open and read to verify basic parsing still works
+        let ir = to_ir(p).unwrap();
+        assert_eq!(ir.paragraphs.len(), 2);
+        assert_eq!(ir.tables.len(), 1);
+
+        let _ = std::fs::remove_file(path);
     }
 }

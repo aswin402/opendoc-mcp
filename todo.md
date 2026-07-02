@@ -34,7 +34,12 @@ Tasks tracked in [Implementation Plan](docs/implementationplan.md).
 - [x] PDF split by page range
 - [x] Password and encryption support for PDF and Office files
 
-## 🔜 v0.0.5 — Planned
+## ✅ v0.0.5 — Complete
 
-- [ ] Batch operations conversion CLI/MCP tool extensions
-- [ ] Direct conversion performance profiling and benchmarking
+- [x] Batch operations conversion CLI/MCP tool extensions
+- [x] Direct conversion performance profiling and benchmarking
+
+## 🔜 v0.0.6 — Planned
+
+- [ ] WASM targets compilation feasibility study
+- [ ] Digital signatures cryptographic support (PDF)

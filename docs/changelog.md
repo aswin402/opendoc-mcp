@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.0.6] — 2026-07-02
+
+### Added
+
+#### Recursive & Extended Batch Operations
+- Implemented recursive directory walking for the batch converter.
+- Recreates directory subdirectory structures relative to the input folder in the output folder.
+- Integrated optional password decryption into batch conversion.
+- Added concurrency thread limit control for batch processing.
+- Exposed these new parameters to both the `batch_convert` MCP tool and the `batch` CLI command.
+
+#### Performance Profiling & Benchmarking
+- Added Criterion benchmarks for PDF text extraction (`bench_pdf_text_extraction`), template engine filling (`bench_template_rendering`), PDF layout compilation (`bench_pdf_layout_creation`), and DOCX ZIP image extraction (`bench_docx_image_extraction`).
+- Verified all benchmarks compile and execute successfully.
+
 ## [0.0.5] — 2026-07-02
 
 ### Added

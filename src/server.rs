@@ -574,7 +574,7 @@ impl OpendocServer {
     //  BATCH TOOLS
     // ═══════════════════════════════════════════
 
-    #[tool(description = "Batch convert all files in a directory matching a pattern")]
+    #[tool(description = "Batch convert all files in a directory matching a pattern with advanced options")]
     fn batch_convert(
         &self,
         #[tool(param)]
@@ -589,10 +589,27 @@ impl OpendocServer {
         #[tool(param)]
         #[schemars(description = "Output directory")]
         output_dir: String,
+        #[tool(param)]
+        #[schemars(description = "If true, walk directories recursively")]
+        recursive: Option<bool>,
+        #[tool(param)]
+        #[schemars(description = "Optional password for encrypted source documents")]
+        password: Option<String>,
+        #[tool(param)]
+        #[schemars(description = "Optional concurrency thread limit")]
+        concurrency: Option<usize>,
     ) -> String {
         let input_dir = validate_path!(input_dir);
         let output_dir = validate_path!(output_dir);
-        let results = crate::batch::batch_convert(&input_dir, &pattern, &target_format, &output_dir);
+        let results = crate::batch::batch_convert_extended(
+            &input_dir,
+            &pattern,
+            &target_format,
+            &output_dir,
+            recursive.unwrap_or(false),
+            password.as_deref(),
+            concurrency,
+        );
         serde_json::to_string_pretty(&results).unwrap_or_default()
     }
 

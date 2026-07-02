@@ -51,6 +51,15 @@ mod imp {
             /// File pattern (e.g., "*.docx")
             #[arg(short, long, default_value = "*")]
             pattern: String,
+            /// Recursive traversal
+            #[arg(short, long)]
+            recursive: bool,
+            /// Optional password for encrypted files
+            #[arg(short, long)]
+            password: Option<String>,
+            /// Optional thread concurrency limit
+            #[arg(short, long)]
+            concurrency: Option<usize>,
         },
         /// Merge multiple PDFs
         Merge {
@@ -119,9 +128,25 @@ mod imp {
                     println!("{}", content);
                 }
             }
-            Commands::Batch { input_dir, target, output_dir, pattern } => {
+            Commands::Batch {
+                input_dir,
+                target,
+                output_dir,
+                pattern,
+                recursive,
+                password,
+                concurrency,
+            } => {
                 std::fs::create_dir_all(&output_dir)?;
-                let results = crate::batch::batch_convert(&input_dir, &pattern, &target, &output_dir);
+                let results = crate::batch::batch_convert_extended(
+                    &input_dir,
+                    &pattern,
+                    &target,
+                    &output_dir,
+                    recursive,
+                    password.as_deref(),
+                    concurrency,
+                );
                 println!("{}", serde_json::to_string_pretty(&results).unwrap());
             }
             Commands::Merge { sources, output } => {

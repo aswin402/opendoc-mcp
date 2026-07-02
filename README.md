@@ -248,7 +248,8 @@ opendoc-mcp/
 ## Roadmap
 
 **v0.0.2 ✅** — IR engine, format expansion (XLSX, HTML, MD, CSV), batch processing, CLI, benchmarks, doc comments
-**v0.0.3 🔄** — Enhanced template engine (completed), multi-page PDF with layout, DOCX image insertion, 80%+ test coverage
+**v0.0.3 ✅** — Enhanced template engine, multi-page PDF with layout, DOCX image insertion, 80%+ test coverage
+**v0.0.4 🔄** — Text chunking for RAG, image extraction, PDF split by range, password support
 **v0.1.0** — WASM target, digital signatures, document comparison, streaming
 **v1.0.0** — Production-ready: full format coverage, enterprise security, OCR
 

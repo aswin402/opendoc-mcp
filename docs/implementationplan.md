@@ -1,8 +1,8 @@
 # Implementation Plan — opendoc-mcp
 
-**Version:** 0.0.3-dev
+**Version:** 0.0.4-dev
 **Status:** Active
-**Last Updated:** 2026-06-30
+**Last Updated:** 2026-07-02
 
 ---
 
@@ -10,7 +10,7 @@
 
 This document outlines the phased implementation plan for `opendoc-mcp`, tracking progress from the current v0.0.1 through v1.0.0.
 
-### Current Status (v0.0.3-dev)
+### Current Status (v0.0.4-dev)
 
 | Component | Status | Notes |
 |-----------|--------|-------|
@@ -78,19 +78,19 @@ This document outlines the phased implementation plan for `opendoc-mcp`, trackin
 | 2.1 | Multi-page PDF creation with layout | High | 2 days | ✅ |
 | 2.2 | Enhanced template engine (nested objects, loops) | Medium | 2 days | ✅ |
 | 2.3 | DOCX image insertion | Medium | 1 day | ✅ |
-| 2.4 | Expanded test coverage (80%+) | High | 2 days | ❌ |
+| 2.4 | Expanded test coverage (80%+) | High | 2 days | ✅ |
 
 ### Deliverables
 
 - [x] Multi-page PDF with text flow, page breaks, images
 - [x] Template engine supports nested objects and loops
 - [x] DOCX image insertion via rdocx
-- [ ] >80% code coverage
-- [ ] Published as v0.0.3
+- [x] >80% code coverage
+- [x] Published as v0.0.3
 
 ---
 
-## 4. Phase 3: AI Agent Optimization (v0.2.0)
+## 4. Phase 3: AI Agent Optimization (v0.0.4)
 
 **Focus:** RAG pipeline support, document intelligence, batch processing features.
 
@@ -108,7 +108,7 @@ This document outlines the phased implementation plan for `opendoc-mcp`, trackin
 - [ ] Text chunking with configurable strategies
 - [ ] Image extraction from office documents
 - [ ] PDF split and merge enhancements
-- [ ] Published as v0.2.0
+- [ ] Published as v0.0.4
 
 ---
 

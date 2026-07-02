@@ -27,6 +27,9 @@ Tasks tracked in [Implementation Plan](docs/implementationplan.md).
 - [x] Version incremented and codebase validated offline
 - [x] Changelog updated for v0.0.3
 
-## 🔜 v0.1.0 — Planned
+## 🔜 v0.0.4 — Planned
 
-- [ ] Expanded test coverage (80%+)
+- [ ] Text chunking strategies (heading, token count, byte size) for RAG input
+- [ ] Image extraction out of DOCX and PPTX files
+- [ ] PDF split by page range
+- [ ] Password and encryption support for PDF and Office files

@@ -307,7 +307,7 @@ fn process_all_blocks(template: &str, vars: &Value, count: &mut usize) -> String
 /// Expand a conditional block: {{#if name}}...{{else}}...{{/if}}
 fn expand_conditional(name: &str, content: &str, vars: &Value, count: &mut usize) -> String {
     let resolved = resolve_path(vars, name);
-    let condition = resolved.map_or(false, |v| is_truthy(v));
+    let condition = resolved.is_some_and(is_truthy);
 
     // Check for {{else}} in content
     let else_marker = "{{else}}";

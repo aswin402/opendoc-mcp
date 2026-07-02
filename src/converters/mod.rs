@@ -611,3 +611,111 @@ pub enum ConversionError {
     #[error("Unsupported conversion: {0} → {1}")]
     UnsupportedConversion(String, String),
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ir::{Document as IrDocument, Paragraph as IrParagraph, Table as IrTable, Section as IrSection};
+    use std::fs;
+
+    #[test]
+    fn test_convert_file_not_found() {
+        let res = convert("/nonexistent/file/path.docx", "pdf", "/tmp/out.pdf");
+        assert!(matches!(res, Err(ConversionError::FileNotFound(_))));
+    }
+
+    #[test]
+    fn test_unsupported_conversion() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_unsupported.txt");
+        fs::write(&path, "content").unwrap();
+        
+        let res = convert(path.to_str().unwrap(), "unsupported_format", "/tmp/out.pdf");
+        assert!(res.is_err());
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn test_export_formats() {
+        let dir = std::env::temp_dir();
+        let mut doc = IrDocument::new("txt");
+        doc.path = Some(dir.join("source_export.txt").to_str().unwrap().to_string());
+        
+        let p_text = IrParagraph::new("Hello paragraph");
+        doc.paragraphs.push(p_text);
+
+        let mut p_heading = IrParagraph::new("My Section");
+        p_heading.is_heading = true;
+        p_heading.heading_level = 2;
+        doc.paragraphs.push(p_heading);
+
+        doc.sections.push(IrSection {
+            title: "My Section".to_string(),
+            level: 2,
+            index: 0,
+            content: Vec::new(),
+        });
+        doc.tables.push(IrTable::new(
+            vec!["Header1".to_string(), "Header2".to_string()],
+            vec![vec!["Value1".to_string(), "Value2".to_string()]]
+        ));
+
+        // Test export to JSON
+        let path_json = dir.join("out_export.json");
+        let res = export(&doc, "json", path_json.to_str().unwrap());
+        assert!(res.is_ok());
+        let content = fs::read_to_string(&path_json).unwrap();
+        assert!(content.contains("Hello paragraph"));
+        assert!(content.contains("Header1"));
+        let _ = fs::remove_file(path_json);
+
+        // Test export to TXT
+        let path_txt = dir.join("out_export.txt");
+        let res = export(&doc, "txt", path_txt.to_str().unwrap());
+        assert!(res.is_ok());
+        let content = fs::read_to_string(&path_txt).unwrap();
+        assert!(content.contains("Hello paragraph"));
+        let _ = fs::remove_file(path_txt);
+
+        // Test export to Markdown
+        let path_md = dir.join("out_export.md");
+        let res = export(&doc, "md", path_md.to_str().unwrap());
+        assert!(res.is_ok());
+        let content = fs::read_to_string(&path_md).unwrap();
+        assert!(content.contains("# My Section"));
+        assert!(content.contains("| Header1 | Header2 |"));
+        let _ = fs::remove_file(path_md);
+
+        // Test export to HTML
+        let path_html = dir.join("out_export.html");
+        let res = export(&doc, "html", path_html.to_str().unwrap());
+        assert!(res.is_ok());
+        let content = fs::read_to_string(&path_html).unwrap();
+        assert!(content.contains("<h2>My Section</h2>"));
+        assert!(content.contains("<th>Header1</th>"));
+        let _ = fs::remove_file(path_html);
+
+        // Test export to CSV
+        let path_csv = dir.join("out_export.csv");
+        let res = export(&doc, "csv", path_csv.to_str().unwrap());
+        assert!(res.is_ok());
+        let content = fs::read_to_string(&path_csv).unwrap();
+        assert!(content.contains("Header1,Header2"));
+        assert!(content.contains("Value1,Value2"));
+        let _ = fs::remove_file(path_csv);
+
+        // Test export to XLSX
+        let path_xlsx = dir.join("out_export.xlsx");
+        let res = export(&doc, "xlsx", path_xlsx.to_str().unwrap());
+        assert!(res.is_ok());
+        assert!(path_xlsx.exists());
+        let _ = fs::remove_file(path_xlsx);
+
+        // Test export to DOCX
+        let path_docx = dir.join("out_export.docx");
+        let res = export(&doc, "docx", path_docx.to_str().unwrap());
+        assert!(res.is_ok());
+        assert!(path_docx.exists());
+        let _ = fs::remove_file(path_docx);
+    }
+}

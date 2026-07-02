@@ -87,6 +87,7 @@ impl<'a> PdfBuilder<'a> {
     }
 
     /// Add wrapped text (word-wrap at margin width)
+    #[allow(dead_code)]
     fn add_wrapped_text(&mut self, text: &str) {
         let max_chars = self.chars_per_line();
         for line in text.lines() {

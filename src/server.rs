@@ -660,6 +660,7 @@ impl OpendocServer {
     }
 
     #[tool(description = "Create a PDF with full layout control: title page, page numbers, margins, font size, explicit page breaks (\\f)")]
+    #[allow(clippy::too_many_arguments)]
     fn create_formatted_pdf(
         &self,
         #[tool(param)]

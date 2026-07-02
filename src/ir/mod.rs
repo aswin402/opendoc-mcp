@@ -18,5 +18,6 @@ pub mod metadata;
 
 pub use document::Document;
 pub use document::Section;
+pub use document::Chunk;
 pub use elements::*;
 pub use metadata::*;

@@ -8,6 +8,7 @@ pub mod replace;
 pub mod template;
 pub mod diff;
 pub mod complexity;
+pub mod chunk;
 
 use crate::ir::Document;
 

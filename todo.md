@@ -29,7 +29,7 @@ Tasks tracked in [Implementation Plan](docs/implementationplan.md).
 
 ## 🔜 v0.0.4 — Planned
 
-- [ ] Text chunking strategies (heading, token count, byte size) for RAG input
+- [x] Text chunking strategies (heading, token count, byte size) for RAG input
 - [ ] Image extraction out of DOCX and PPTX files
 - [ ] PDF split by page range
 - [ ] Password and encryption support for PDF and Office files

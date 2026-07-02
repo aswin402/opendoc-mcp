@@ -249,22 +249,39 @@ impl OpendocServer {
         serde_json::to_string_pretty(&result).unwrap_or_default()
     }
 
-    #[tool(description = "Chunk document for RAG embedding pipelines")]
+    #[tool(description = "Chunk document for RAG embedding pipelines with configurable strategies")]
     fn chunk_for_embedding(
         &self,
         #[tool(param)]
         #[schemars(description = "File path to the document")]
         file_path: String,
         #[tool(param)]
+        #[schemars(description = "Strategy: fixed, heading, recursive, page (default: fixed)")]
+        strategy: Option<String>,
+        #[tool(param)]
         #[schemars(description = "Maximum tokens per chunk (default 512)")]
         max_tokens: Option<usize>,
+        #[tool(param)]
+        #[schemars(description = "Token overlap between consecutive chunks (default: 50)")]
+        overlap: Option<usize>,
     ) -> String {
         let file_path = validate_path!(file_path);
         match handlers::load_to_ir(&file_path) {
             Ok(ir) => {
-                let chunks = ir.chunk_for_embedding(max_tokens.unwrap_or(512));
+                let chunking_strategy = match strategy {
+                    Some(s) => match s.parse::<crate::engine::chunk::ChunkingStrategy>() {
+                        Ok(st) => st,
+                        Err(e) => return serde_json::json!({"error": e}).to_string(),
+                    },
+                    None => crate::engine::chunk::ChunkingStrategy::Fixed,
+                };
+                let max_tok = max_tokens.unwrap_or(512);
+                let over = overlap.unwrap_or(50);
+                
+                let chunks = ir.chunk_with_strategy(chunking_strategy, max_tok, over);
                 serde_json::json!({
                     "success": true,
+                    "strategy": format!("{:?}", chunking_strategy).to_lowercase(),
                     "chunk_count": chunks.len(),
                     "chunks": chunks,
                 }).to_string()

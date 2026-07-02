@@ -82,41 +82,19 @@ impl Document {
         count
     }
 
-    /// Chunk document for RAG pipelines
+    /// Chunk document for RAG pipelines using default fixed strategy
     pub fn chunk_for_embedding(&self, max_tokens: usize) -> Vec<Chunk> {
-        let mut chunks = Vec::new();
-        let mut current = String::new();
-        let mut current_tokens = 0usize;
-        let mut current_heading = String::new();
+        crate::engine::chunk::chunk_document(self, crate::engine::chunk::ChunkingStrategy::Fixed, max_tokens, 0)
+    }
 
-        for p in &self.paragraphs {
-            if p.is_heading {
-                current_heading = p.text.clone();
-            }
-            let tokens = p.text.len() / 4 + 1;
-            if current_tokens + tokens > max_tokens && !current.is_empty() {
-                chunks.push(Chunk {
-                    text: current.clone(),
-                    heading: current_heading.clone(),
-                    index: chunks.len(),
-                });
-                current.clear();
-                current_tokens = 0;
-            }
-            current.push_str(&p.text);
-            current.push('\n');
-            current_tokens += tokens;
-        }
-
-        if !current.is_empty() {
-            chunks.push(Chunk {
-                text: current,
-                heading: current_heading,
-                index: chunks.len(),
-            });
-        }
-
-        chunks
+    /// Chunk document for RAG pipelines with configurable strategy and overlap
+    pub fn chunk_with_strategy(
+        &self,
+        strategy: crate::engine::chunk::ChunkingStrategy,
+        max_tokens: usize,
+        overlap: usize,
+    ) -> Vec<Chunk> {
+        crate::engine::chunk::chunk_document(self, strategy, max_tokens, overlap)
     }
 }
 

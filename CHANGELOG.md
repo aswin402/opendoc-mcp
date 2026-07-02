@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.0.4] — Unreleased
 
+### Added
+
+#### Strategy-Driven Text Chunking (RAG Support)
+- Created `src/engine/chunk.rs` implementing multiple configurable strategies for text chunking:
+  - `fixed` (sliding window of paragraphs with configurable token overlap).
+  - `heading` (headings/section boundary-based chunking with recursive splits for oversized segments).
+  - `recursive` (langchain-style recursive splitting by paragraph, newline, sentence, and word boundaries).
+  - `page` (slide or sheet boundary-based chunking).
+- Exposed the `strategy` and `overlap` configuration parameters to the `chunk_for_embedding` MCP server tool.
+- Added extensive unit tests covering all chunking strategies.
+
 ## [0.0.3] — 2026-07-02
 
 ### Added

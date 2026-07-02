@@ -43,8 +43,11 @@ Tasks tracked in [Implementation Plan](docs/implementationplan.md).
 
 - [x] Spreadsheet Write, Update, & Edit Support (XLSX)
 
-## 🔜 v0.0.7 — Planned
+## ✅ v0.0.7 — Complete
 
-- [ ] Visual Document Diffing (HTML/Markdown highlights)
+- [x] Visual Document Diffing (HTML/Markdown highlights)
+
+## 🔜 v0.0.8 — Planned
+
 - [ ] Enhanced DOCX/PPTX styling and layout options
 - [ ] Scanned PDF OCR integration

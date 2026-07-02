@@ -252,7 +252,8 @@ opendoc-mcp/
 **v0.0.4 ✅** — Text chunking for RAG, image extraction, PDF split by range, password support
 **v0.0.5 ✅** — Batch operations conversion CLI/MCP tool extensions, direct conversion performance profiling
 **v0.0.6 ✅** — Spreadsheet Write, Update, & Edit Support (XLSX)
-**v0.0.7 🔄** — Visual Document Diffing, Enhanced DOCX/PPTX styling, OCR Integration
+**v0.0.7 ✅** — Visual Document Diffing (HTML/Markdown highlights)
+**v0.0.8 🔄** — Enhanced DOCX/PPTX styling, OCR Integration
 **v0.1.0** — WASM target, digital signatures, document comparison, streaming
 **v1.0.0** — Production-ready: full format coverage, enterprise security, OCR
 

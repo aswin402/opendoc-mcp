@@ -264,6 +264,33 @@ impl OpendocServer {
         serde_json::to_string_pretty(&result).unwrap_or_default()
     }
 
+    #[tool(description = "Compare two documents and return a visual difference report as HTML or Markdown")]
+    fn diff_documents_visual(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "First document path")]
+        file_a: String,
+        #[tool(param)]
+        #[schemars(description = "Second document path")]
+        file_b: String,
+        #[tool(param)]
+        #[schemars(description = "Output format: html or markdown (default: html)")]
+        format: Option<String>,
+    ) -> String {
+        let file_a = validate_path!(file_a);
+        let file_b = validate_path!(file_b);
+        let (doc_a, doc_b) = match (
+            handlers::load_to_ir(&file_a),
+            handlers::load_to_ir(&file_b),
+        ) {
+            (Ok(a), Ok(b)) => (a, b),
+            (Err(e), _) => return serde_json::json!({"error": format!("Failed to load file_a: {e}")}).to_string(),
+            (_, Err(e)) => return serde_json::json!({"error": format!("Failed to load file_b: {e}")}).to_string(),
+        };
+        let is_html = format.map(|f| f.to_lowercase() == "html").unwrap_or(true);
+        diff::render_diff_visual(&doc_a, &doc_b, is_html)
+    }
+
     #[tool(description = "Chunk document for RAG embedding pipelines with configurable strategies")]
     fn chunk_for_embedding(
         &self,
@@ -1016,7 +1043,7 @@ impl OpendocServer {
             "description": "Rust-native Document Intelligence Engine for AI Agents",
             "formats": ["docx", "pptx", "pdf", "xlsx", "html", "md", "csv", "txt"],
             "tool_categories": {
-                "document_intelligence": ["open_document", "read_document_text", "search_document", "replace_text", "diff_documents", "chunk_for_embedding", "fill_template", "validate_document"],
+                "document_intelligence": ["open_document", "read_document_text", "search_document", "replace_text", "diff_documents", "diff_documents_visual", "chunk_for_embedding", "fill_template", "validate_document"],
                 "conversion": ["convert", "create_html"],
                 "batch": ["batch_convert"],
                 "docx": ["create_docx", "docx_add_paragraph", "docx_add_table", "docx_add_image"],

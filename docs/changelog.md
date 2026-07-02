@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.0.8] — 2026-07-02
+
+### Added
+
+#### Visual Document Diffing (HTML/Markdown highlights)
+- Implemented `render_diff_visual` in `src/engine/diff.rs` to compute paragraph-level comparisons and return highlighted reports.
+- Supports both styled HTML format and standard Markdown format.
+- Implemented character/word-level diffing inside modified paragraphs (adjacent additions and removals) to highlight the specific words altered.
+- Registered the new `diff_documents_visual` tool to the MCP server under the `"document_intelligence"` category.
+- Added comprehensive visual diff unit tests for both Markdown word-level diffs and HTML container markup.
+
 ## [0.0.7] — 2026-07-02
 
 ### Added

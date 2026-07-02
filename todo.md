@@ -22,11 +22,11 @@ Tasks tracked in [Implementation Plan](docs/implementationplan.md).
 
 - [x] Multi-page PDF creation with layout (auto word-wrap, page breaks, margins, page numbers, title page)
 - [x] Enhanced template engine (nested objects, loops, conditionals)
-- [x] Expanded test coverage (14 new unit tests for template engine, 5 new layout PDF tests, all passing)
+- [x] DOCX image insertion (binary embedding via rdocx)
+- [x] Expanded test coverage (14 new unit tests for template engine, 5 new layout PDF tests, 1 new DOCX image test, all passing)
 - [x] Version incremented and codebase validated offline
 - [x] Changelog updated for v0.0.3
 
 ## 🔜 v0.1.0 — Planned
 
-- [ ] DOCX image insertion
 - [ ] Expanded test coverage (80%+)

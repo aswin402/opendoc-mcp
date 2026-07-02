@@ -77,14 +77,14 @@ This document outlines the phased implementation plan for `opendoc-mcp`, trackin
 |----|------|----------|-------------|--------|
 | 2.1 | Multi-page PDF creation with layout | High | 2 days | ✅ |
 | 2.2 | Enhanced template engine (nested objects, loops) | Medium | 2 days | ✅ |
-| 2.3 | DOCX image insertion | Medium | 1 day | ❌ |
+| 2.3 | DOCX image insertion | Medium | 1 day | ✅ |
 | 2.4 | Expanded test coverage (80%+) | High | 2 days | ❌ |
 
 ### Deliverables
 
 - [x] Multi-page PDF with text flow, page breaks, images
 - [x] Template engine supports nested objects and loops
-- [ ] DOCX image insertion via rdocx
+- [x] DOCX image insertion via rdocx
 - [ ] >80% code coverage
 - [ ] Published as v0.0.3
 

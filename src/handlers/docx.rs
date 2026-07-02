@@ -162,6 +162,51 @@ pub fn to_markdown(source: &str, output: &str) -> String {
     }
 }
 
+/// Embed an image into a DOCX document.
+pub fn add_image(
+    file_path: &str,
+    image_path: &str,
+    width_inches: Option<f64>,
+    height_inches: Option<f64>,
+) -> String {
+    let mut doc = match Document::open(file_path) {
+        Ok(d) => d,
+        Err(e) => return serde_json::json!({"error": e.to_string()}).to_string(),
+    };
+
+    let img_bytes = match std::fs::read(image_path) {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            return serde_json::json!({
+                "error": format!("Cannot read image file '{}': {}", image_path, e),
+                "suggestion": "Check that the image path exists and is readable."
+            })
+            .to_string();
+        }
+    };
+
+    let path = std::path::Path::new(image_path);
+    let filename = path.file_name()
+        .and_then(|f| f.to_str())
+        .unwrap_or("image.png");
+
+    let w = rdocx::Length::inches(width_inches.unwrap_or(2.0));
+    let h = rdocx::Length::inches(height_inches.unwrap_or(1.5));
+
+    doc.add_picture(&img_bytes, filename, w, h);
+
+    match doc.save(file_path) {
+        Ok(_) => serde_json::json!({
+            "success": true,
+            "path": file_path,
+            "image": image_path,
+            "width_inches": width_inches.unwrap_or(2.0),
+            "height_inches": height_inches.unwrap_or(1.5),
+        }).to_string(),
+        Err(e) => serde_json::json!({"error": e.to_string()}).to_string(),
+    }
+}
+
 /// Load a DOCX file into the Internal Representation (IR)
 pub fn to_ir(file_path: &str) -> Result<crate::ir::Document, crate::handlers::LoadError> {
     let doc = Document::open(file_path)
@@ -177,6 +222,20 @@ pub fn to_ir(file_path: &str) -> Result<crate::ir::Document, crate::handlers::Lo
         if !text.is_empty() {
             ir.paragraphs.push(crate::ir::elements::Paragraph::new(text));
         }
+    }
+
+    for img in doc.images() {
+        let width_pixels = (img.width_emu as f64 / 9525.0) as u32;
+        let height_pixels = (img.height_emu as f64 / 9525.0) as u32;
+
+        ir.images.push(crate::ir::elements::Image {
+            name: img.name.clone().unwrap_or_else(|| img.embed_id.clone()),
+            width: width_pixels,
+            height: height_pixels,
+            mime_type: "image/png".to_string(),
+            data_base64: None,
+            path: None,
+        });
     }
 
     for table in doc.tables() {
@@ -239,13 +298,31 @@ mod tests {
         let res_r = find_replace_text(p, "Paragraph", "DocPara");
         assert!(res_r.contains("\"success\":true"));
 
-        // 6. Convert to IR
+        // 6. Add image
+        let img_path = dir.join("test_lifecycle_img.png");
+        let png_data: Vec<u8> = vec![
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+            0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+            0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+            0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE,
+            0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41, 0x54,
+            0x08, 0xD7, 0x63, 0xF8, 0xCF, 0xC0, 0x00, 0x00, 0x00, 0x02, 0x00, 0x01, 0xE2, 0x21, 0xBC,
+            0x33, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44,
+            0xAE, 0x42, 0x60, 0x82,
+        ];
+        std::fs::write(&img_path, &png_data).unwrap();
+        let res_img = add_image(p, img_path.to_str().unwrap(), Some(2.0), Some(1.5));
+        assert!(res_img.contains("\"success\":true"));
+
+        // 7. Convert to IR
         let ir = to_ir(p).unwrap();
         assert_eq!(ir.paragraphs.len(), 2); // Title and paragraph
         assert_eq!(ir.tables.len(), 1);
         assert_eq!(ir.tables[0].headers, vec!["ColA", "ColB"]);
+        assert_eq!(ir.images.len(), 1);
 
         // Clean up
         let _ = std::fs::remove_file(path);
+        let _ = std::fs::remove_file(img_path);
     }
 }

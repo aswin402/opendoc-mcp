@@ -560,6 +560,27 @@ impl OpendocServer {
         docx::add_table(&file_path, &headers, &data)
     }
 
+    #[tool(description = "Add an image with size options to a DOCX document")]
+    fn docx_add_image(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "File path to the document")]
+        file_path: String,
+        #[tool(param)]
+        #[schemars(description = "File path to the image to insert")]
+        image_path: String,
+        #[tool(param)]
+        #[schemars(description = "Optional image width in inches (default: 2.0)")]
+        width_inches: Option<f64>,
+        #[tool(param)]
+        #[schemars(description = "Optional image height in inches (default: 1.5)")]
+        height_inches: Option<f64>,
+    ) -> String {
+        let file_path = validate_path!(file_path);
+        let image_path = validate_path!(image_path);
+        docx::add_image(&file_path, &image_path, width_inches, height_inches)
+    }
+
     // ═══════════════════════════════════════════
     //  PPTX TOOLS
     // ═══════════════════════════════════════════
@@ -856,7 +877,7 @@ impl OpendocServer {
                 "document_intelligence": ["open_document", "read_document_text", "search_document", "replace_text", "diff_documents", "chunk_for_embedding", "fill_template", "validate_document"],
                 "conversion": ["convert", "create_html"],
                 "batch": ["batch_convert"],
-                "docx": ["create_docx", "docx_add_paragraph", "docx_add_table"],
+                "docx": ["create_docx", "docx_add_paragraph", "docx_add_table", "docx_add_image"],
                 "pptx": ["create_pptx", "pptx_add_slide"],
                 "xlsx": ["create_xlsx"],
                 "pdf": ["create_pdf", "merge_pdfs", "extract_pdf_text", "list_pdf_fields", "fill_pdf_form"],

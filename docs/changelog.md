@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### DOCX Image Insertion
+- Created `docx_add_image` tool/function in `src/handlers/docx.rs` and registered it to the MCP server.
+- Supports binary image embedding into paragraphs of existing DOCX files, with custom width and height parameters in inches.
+- Updated `to_ir` to parse and extract image dimensions and metadata from DOCX files.
+- Added comprehensive unit tests validating image insertion and IR metadata extraction.
+
 #### PDF Rendering with Layout Control
 - Created `create_formatted_pdf` tool/function in `src/handlers/pdf.rs` allowing layout customisations.
 - Configurable settings via `PdfLayoutConfig`: custom document title (rendered centered on page 1), author metadata, page numbering toggle, margins (top/bottom/left/right), font size.

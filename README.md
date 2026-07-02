@@ -49,7 +49,7 @@ One binary. Zero deps. All formats. Lightning fast.
 - `batch_convert` — Parallel conversion of a whole directory of documents
 
 **Authoring & Editing**
-- **DOCX**: `create_docx`, `docx_add_paragraph`, `docx_add_table`
+- **DOCX**: `create_docx`, `docx_add_paragraph`, `docx_add_table`, `docx_add_image`
 - **PPTX**: `create_pptx`, `pptx_add_slide`
 - **XLSX**: `create_xlsx` (takes raw JSON `sheets` array)
 - **PDF**: `create_pdf`, `merge_pdfs`, `extract_pdf_text`, `list_pdf_fields`, `fill_pdf_form` (takes raw JSON `values` object)

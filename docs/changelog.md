@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.0.7] — 2026-07-02
+
+### Added
+
+#### Spreadsheet Write, Update, & Edit Support (XLSX)
+- Implemented `edit_xlsx` function in `src/handlers/xlsx.rs` to support editing existing Excel workbooks.
+- Supports adding new worksheets.
+- Supports applying cell updates across multiple worksheets including writing formulas, floating numbers, booleans, and strings.
+- Automatically handles out-of-bounds cell coordinates by dynamically resizing the spreadsheet grid.
+- Exposed the new `edit_xlsx` tool to the MCP server with capabilities registration.
+- Added comprehensive unit test `test_edit_xlsx` validating sheet additions, cell updates, grid resizing, and formula parsing.
+
 ## [0.0.6] — 2026-07-02
 
 ### Added

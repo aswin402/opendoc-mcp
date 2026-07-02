@@ -204,6 +204,132 @@ pub struct XlsxSheet {
     pub data: Vec<Vec<String>>,
 }
 
+/// A cell update operation for modifying spreadsheets.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct XlsxCellOperation {
+    pub sheet_name: String,
+    pub row: u32,
+    pub col: u16,
+    pub value: String,
+}
+
+/// Request payload for editing spreadsheets.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct XlsxEditRequest {
+    pub file_path: String,
+    pub cell_updates: Option<Vec<XlsxCellOperation>>,
+    pub add_sheets: Option<Vec<String>>,
+}
+
+/// Edit an existing XLSX file by applying sheet additions and cell updates
+pub fn edit_xlsx(request: &XlsxEditRequest) -> Result<String, String> {
+    // 1. Open the existing workbook to read all sheets
+    let mut workbook: Xlsx<BufReader<File>> = open_workbook(&request.file_path)
+        .map_err(|e| format!("Failed to open XLSX for editing: {e}"))?;
+
+    let sheet_names = workbook.sheet_names().to_vec();
+    let mut sheets_data = Vec::new();
+
+    // 2. Read each existing sheet's grid of cells
+    for sheet_name in &sheet_names {
+        let range = workbook.worksheet_range(sheet_name)
+            .map_err(|e| format!("Failed to read sheet '{sheet_name}': {e}"))?;
+
+        let (row_count, col_count) = range.get_size();
+        let mut grid = vec![vec![String::new(); col_count]; row_count];
+
+        for r in 0..row_count {
+            for c in 0..col_count {
+                if let Some(val) = range.get_value((r as u32, c as u32)) {
+                    grid[r][c] = cell_to_string(val);
+                }
+            }
+        }
+        sheets_data.push((sheet_name.clone(), grid));
+    }
+
+    // 3. Close the workbook reader to release file handle
+    drop(workbook);
+
+    // 4. Apply any added sheets
+    if let Some(ref new_sheets) = request.add_sheets {
+        for name in new_sheets {
+            if !sheets_data.iter().any(|(s, _)| s == name) {
+                sheets_data.push((name.clone(), vec![vec![String::new(); 1]; 1]));
+            }
+        }
+    }
+
+    // 5. Apply cell updates
+    if let Some(ref updates) = request.cell_updates {
+        for update in updates {
+            // Find sheet or create it if not exists
+            let sheet_idx = match sheets_data.iter().position(|(s, _)| s == &update.sheet_name) {
+                Some(idx) => idx,
+                None => {
+                    sheets_data.push((update.sheet_name.clone(), vec![vec![String::new(); 1]; 1]));
+                    sheets_data.len() - 1
+                }
+            };
+
+            let grid = &mut sheets_data[sheet_idx].1;
+            
+            // Resize grid if row or col is out of bounds
+            let target_rows = (update.row + 1) as usize;
+            let target_cols = (update.col + 1) as usize;
+
+            if target_rows > grid.len() {
+                let current_cols = if grid.is_empty() { 1 } else { grid[0].len() };
+                grid.resize(target_rows, vec![String::new(); current_cols]);
+            }
+            
+            let current_cols = grid[0].len();
+            if target_cols > current_cols {
+                for r in grid.iter_mut() {
+                    r.resize(target_cols, String::new());
+                }
+            }
+
+            grid[update.row as usize][update.col as usize] = update.value.clone();
+        }
+    }
+
+    // 6. Save/Write everything back using rust_xlsxwriter
+    let mut out_workbook = rust_xlsxwriter::Workbook::new();
+    for (sheet_name, grid) in sheets_data {
+        let sheet = out_workbook.add_worksheet();
+        let _ = sheet.set_name(&sheet_name);
+
+        for (r, row_vec) in grid.iter().enumerate() {
+            for (c, cell_val) in row_vec.iter().enumerate() {
+                if cell_val.is_empty() {
+                    continue;
+                }
+                
+                // Write formulas, numbers, booleans, or strings
+                if cell_val.starts_with('=') {
+                    let _ = sheet.write_formula(r as u32, c as u16, cell_val.as_str());
+                } else if let Ok(num) = cell_val.parse::<f64>() {
+                    let _ = sheet.write_number(r as u32, c as u16, num);
+                } else if let Ok(b) = cell_val.parse::<bool>() {
+                    let _ = sheet.write_boolean(r as u32, c as u16, b);
+                } else {
+                    let _ = sheet.write_string(r as u32, c as u16, cell_val);
+                }
+            }
+        }
+    }
+
+    out_workbook.save(&request.file_path)
+        .map_err(|e| format!("Failed to save edited XLSX: {e}"))?;
+
+    Ok(serde_json::json!({
+        "success": true,
+        "path": request.file_path,
+        "format": "xlsx",
+    }).to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -267,5 +393,46 @@ mod tests {
     fn test_xlsx_file_not_found() {
         let result = to_ir("/nonexistent/path/file.xlsx");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_edit_xlsx() {
+        let (path_str, path) = unique_xlsx();
+
+        let request = XlsxEditRequest {
+            file_path: path_str.clone(),
+            cell_updates: Some(vec![
+                XlsxCellOperation {
+                    sheet_name: "Sheet1".to_string(),
+                    row: 1,
+                    col: 1,
+                    value: "31".to_string(),
+                },
+                XlsxCellOperation {
+                    sheet_name: "Summary".to_string(),
+                    row: 0,
+                    col: 0,
+                    value: "=Sheet1!B2".to_string(),
+                },
+            ]),
+            add_sheets: Some(vec!["Summary".to_string()]),
+        };
+
+        let res = edit_xlsx(&request);
+        assert!(res.is_ok());
+
+        // Read it back
+        let doc = to_ir(&path_str).unwrap();
+        assert_eq!(doc.tables.len(), 2);
+
+        // First sheet
+        let table1 = &doc.tables[0];
+        assert_eq!(table1.rows[0][1], "31");
+
+        // Second sheet
+        let table2 = &doc.tables[1];
+        assert_eq!(table2.caption.as_deref(), Some("Summary"));
+
+        let _ = std::fs::remove_file(&path);
     }
 }

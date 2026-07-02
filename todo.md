@@ -39,7 +39,12 @@ Tasks tracked in [Implementation Plan](docs/implementationplan.md).
 - [x] Batch operations conversion CLI/MCP tool extensions
 - [x] Direct conversion performance profiling and benchmarking
 
-## 🔜 v0.0.6 — Planned
+## ✅ v0.0.6 — Complete
 
-- [ ] WASM targets compilation feasibility study
-- [ ] Digital signatures cryptographic support (PDF)
+- [x] Spreadsheet Write, Update, & Edit Support (XLSX)
+
+## 🔜 v0.0.7 — Planned
+
+- [ ] Visual Document Diffing (HTML/Markdown highlights)
+- [ ] Enhanced DOCX/PPTX styling and layout options
+- [ ] Scanned PDF OCR integration

@@ -749,6 +749,36 @@ impl OpendocServer {
         xlsx::create_xlsx(&file_path, &sheets)
     }
 
+    #[tool(description = "Edit an existing XLSX spreadsheet by applying sheet additions and cell updates")]
+    fn edit_xlsx(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "File path of the existing XLSX to edit")]
+        file_path: String,
+        #[tool(param)]
+        #[schemars(description = "Optional JSON array of sheet names to add: [\"Summary\"]")]
+        add_sheets: Option<serde_json::Value>,
+        #[tool(param)]
+        #[schemars(description = "Optional JSON array of cell updates: [{\"sheet_name\": \"Sheet1\", \"row\": 1, \"col\": 1, \"value\": \"31\"}]")]
+        cell_updates: Option<serde_json::Value>,
+    ) -> String {
+        let file_path = validate_path!(file_path);
+        
+        let parsed_add_sheets: Option<Vec<String>> = add_sheets.and_then(|v| serde_json::from_value(v).ok());
+        let parsed_cell_updates: Option<Vec<xlsx::XlsxCellOperation>> = cell_updates.and_then(|v| serde_json::from_value(v).ok());
+
+        let request = xlsx::XlsxEditRequest {
+            file_path,
+            cell_updates: parsed_cell_updates,
+            add_sheets: parsed_add_sheets,
+        };
+
+        match xlsx::edit_xlsx(&request) {
+            Ok(json_res) => json_res,
+            Err(e) => serde_json::json!({"error": e}).to_string(),
+        }
+    }
+
     // ═══════════════════════════════════════════
     //  PDF TOOLS
     // ═══════════════════════════════════════════
@@ -991,7 +1021,7 @@ impl OpendocServer {
                 "batch": ["batch_convert"],
                 "docx": ["create_docx", "docx_add_paragraph", "docx_add_table", "docx_add_image"],
                 "pptx": ["create_pptx", "pptx_add_slide"],
-                "xlsx": ["create_xlsx"],
+                "xlsx": ["create_xlsx", "edit_xlsx"],
                 "pdf": ["create_pdf", "merge_pdfs", "extract_pdf_text", "list_pdf_fields", "fill_pdf_form"],
                 "metadata": ["find_tables", "analyze_document_complexity"],
                 "ai_features": ["ocr_document", "check_ocr_available"],

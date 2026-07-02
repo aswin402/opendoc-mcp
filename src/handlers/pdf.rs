@@ -1,9 +1,185 @@
 use lopdf::{Document, Object, ObjectId, Stream, Dictionary};
 
+/// Configuration for PDF layout and formatting.
+#[derive(Debug, Clone)]
+pub struct PdfLayoutConfig {
+    pub title: Option<String>,
+    pub author: Option<String>,
+    pub page_numbers: bool,
+    pub margin_top: f64,
+    pub margin_bottom: f64,
+    pub margin_left: f64,
+    pub margin_right: f64,
+    pub font_size: f64,
+    pub line_height: f64,
+    pub page_width: f64,
+    pub page_height: f64,
+}
 
-/// Create a single-page PDF document with Helvetica font and fixed positioning.
-/// Best for short text content; multi-page support planned for v0.1.0.
+impl Default for PdfLayoutConfig {
+    fn default() -> Self {
+        Self {
+            title: None,
+            author: None,
+            page_numbers: false,
+            margin_top: 72.0,
+            margin_bottom: 72.0,
+            margin_left: 72.0,
+            margin_right: 72.0,
+            font_size: 12.0,
+            line_height: 15.0,
+            page_width: 612.0,
+            page_height: 792.0,
+        }
+    }
+}
+
+/// Internal PDF builder that handles layout, pagination, and content flow.
+struct PdfBuilder<'a> {
+    config: &'a PdfLayoutConfig,
+    pages: Vec<Vec<String>>,
+    current_page: Vec<String>,
+    y_pos: f64,
+    page_num: usize,
+}
+
+impl<'a> PdfBuilder<'a> {
+    fn new(config: &'a PdfLayoutConfig) -> Self {
+        Self {
+            config,
+            pages: Vec::new(),
+            current_page: Vec::new(),
+            y_pos: config.page_height - config.margin_top,
+            page_num: 0,
+        }
+    }
+
+    /// Content width in points
+    fn content_width(&self) -> f64 {
+        self.config.page_width - self.config.margin_left - self.config.margin_right
+    }
+
+    /// Estimated max chars per line based on font size (Helvetica average char width ≈ 0.6 * font_size)
+    fn chars_per_line(&self) -> usize {
+        let avg_char_width = self.config.font_size * 0.6;
+        (self.content_width() / avg_char_width).floor() as usize
+    }
+
+    /// Add a line of text at the current position
+    fn add_text_line(&mut self, line: &str) {
+        if self.y_pos < self.config.margin_top + self.config.font_size {
+            self.flush_page();
+        }
+        let escaped = line
+            .replace('\\', "\\\\")
+            .replace('(', "\\(")
+            .replace(')', "\\)");
+        self.current_page.push(format!(
+            "{} Td ({}) Tj",
+            if self.current_page.is_empty() {
+                format!("1 0 0 1 {} {} Tm", self.config.margin_left, self.y_pos)
+            } else {
+                format!("0 {} Td", -self.config.line_height)
+            },
+            escaped
+        ));
+        self.y_pos -= self.config.line_height;
+    }
+
+    /// Add wrapped text (word-wrap at margin width)
+    fn add_wrapped_text(&mut self, text: &str) {
+        let max_chars = self.chars_per_line();
+        for line in text.lines() {
+            let mut remaining = line;
+            while !remaining.is_empty() {
+                if remaining.len() <= max_chars {
+                    self.add_text_line(remaining);
+                    break;
+                }
+                // Try to break at word boundary
+                let break_at = match remaining[..max_chars].rfind(' ') {
+                    Some(pos) => pos,
+                    None => max_chars,
+                };
+                self.add_text_line(&remaining[..break_at]);
+                remaining = remaining[break_at..].trim_start();
+            }
+        }
+    }
+
+    /// Add a page break marker
+    fn add_page_break(&mut self) {
+        self.flush_page();
+    }
+
+    /// Add centered title with spacing
+    fn add_centered(&mut self, text: &str, size: f64, spacing: f64) {
+        if self.y_pos < self.config.margin_top + size + spacing {
+            self.flush_page();
+        }
+        let escaped = text
+            .replace('\\', "\\\\")
+            .replace('(', "\\(")
+            .replace(')', "\\)");
+        // Approximate centering: center of content area
+        let x_center = self.config.margin_left + self.content_width() / 2.0;
+        self.current_page.push(format!(
+            "BT /F1 {:.0} Tf {} {} Tm ({}) Tj ET",
+            size, x_center, self.y_pos, escaped
+        ));
+        self.y_pos -= spacing;
+    }
+
+    /// Flush current page to pages list
+    fn flush_page(&mut self) {
+        if !self.current_page.is_empty() || self.pages.is_empty() {
+            self.page_num += 1;
+            self.pages.push(std::mem::take(&mut self.current_page));
+            self.y_pos = self.config.page_height - self.config.margin_top;
+        }
+    }
+
+    /// Finalize and produce page content strings + total page count
+    fn finalize(mut self) -> Vec<String> {
+        if !self.current_page.is_empty() || self.pages.is_empty() {
+            self.flush_page();
+        }
+        let total = self.pages.len();
+        let show_page_numbers = self.config.page_numbers;
+        let x_center = self.config.margin_left + self.content_width() / 2.0;
+        let y_bottom = self.config.margin_bottom / 2.0;
+        self.pages
+            .into_iter()
+            .enumerate()
+            .map(|(idx, mut page_content)| {
+                if show_page_numbers {
+                    let page_num_text = format!("{} / {}", idx + 1, total);
+                    let escaped = page_num_text
+                        .replace('\\', "\\\\")
+                        .replace('(', "\\(")
+                        .replace(')', "\\)");
+                    let page_num_content = format!(
+                        "BT /F1 9 Tf {} {} Tmd ({}) Tj ET",
+                        x_center, y_bottom, escaped
+                    );
+                    page_content.push(page_num_content);
+                }
+                page_content.join(" ")
+            })
+            .collect()
+    }
+}
+
+/// Create a PDF with word-wrapping, page breaks, and auto-pagination.
+/// Uses default layout (Helvetica 12pt, US Letter, 1-inch margins).
+/// For advanced layout options, use [`create_formatted_pdf`].
 pub fn create_pdf(file_path: &str, text: &str, _author: Option<&str>) -> String {
+    create_formatted_pdf(file_path, text, &PdfLayoutConfig::default())
+}
+
+/// Create a PDF with custom layout configuration.
+/// Supports word-wrapping, page breaks (`\f`), page numbers, title page, and margins.
+pub fn create_formatted_pdf(file_path: &str, text: &str, config: &PdfLayoutConfig) -> String {
     let mut doc = Document::new();
 
     // Create font object
@@ -13,72 +189,61 @@ pub fn create_pdf(file_path: &str, text: &str, _author: Option<&str>) -> String 
         (b"BaseFont".to_vec(), Object::Name(b"Helvetica".to_vec())),
     ])));
 
-    // Split text into lines
-    let mut lines = Vec::new();
-    for line in text.lines() {
-        let escaped = line
-            .replace('\\', "\\\\")
-            .replace('(', "\\(")
-            .replace(')', "\\)");
-        lines.push(escaped);
+    // Build content using the layout engine
+    let mut builder = PdfBuilder::new(config);
+
+    // Title page if title is set
+    if let Some(ref title) = config.title {
+        // Push y to center area
+        builder.y_pos = config.page_height * 0.7;
+        builder.add_centered(title, 24.0, 30.0);
+        if let Some(ref author) = config.author {
+            builder.add_centered(&format!("by {}", author), 14.0, 20.0);
+        }
+        builder.add_centered("", 12.0, 40.0); // spacing
     }
 
+    // Render text content with word-wrapping and explicit page breaks
+    let max_chars = builder.chars_per_line();
+
+    for segment in text.split('\x0c') {
+        if segment != text.split('\x0c').next().unwrap_or("") {
+            builder.add_page_break();
+        }
+        let segment = if segment == text && config.title.is_some() {
+            // Skip first blank if it was just the title
+            segment.trim_start()
+        } else {
+            segment
+        };
+
+        for line in segment.lines() {
+            if line.trim().is_empty() {
+                builder.add_text_line("");
+                continue;
+            }
+            let mut remaining = line;
+            while !remaining.is_empty() {
+                if remaining.len() <= max_chars {
+                    builder.add_text_line(remaining);
+                    break;
+                }
+                let break_at = match remaining[..max_chars].rfind(|c: char| c.is_whitespace()) {
+                    Some(pos) => pos,
+                    None => max_chars,
+                };
+                builder.add_text_line(&remaining[..break_at]);
+                remaining = remaining[break_at..].trim_start();
+            }
+        }
+    }
+
+    let page_contents = builder.finalize();
     let mut page_ids = Vec::new();
     let pages_id = doc.new_object_id();
 
-    // Group lines into pages (40 lines per page)
-    let chunks = lines.chunks(40);
-    for chunk in chunks {
-        let mut content_parts = Vec::new();
-        content_parts.push("BT /F1 12 Tf 50 700 Td".to_string());
-        for (i, line) in chunk.iter().enumerate() {
-            if i > 0 {
-                content_parts.push(format!("0 -15 Td ({}) Tj", line));
-            } else {
-                content_parts.push(format!("({}) Tj", line));
-            }
-        }
-        content_parts.push("ET".to_string());
-        let content_str = content_parts.join(" ");
-
-        let content_id = doc.add_object(Object::Stream(Stream {
-            dict: Dictionary::new(),
-            content: content_str.into_bytes(),
-            allows_compression: true,
-            start_position: None,
-        }));
-
-        let page_id = doc.new_object_id();
-        let page = Object::Dictionary(Dictionary::from_iter([
-            (b"Type".to_vec(), Object::Name(b"Page".to_vec())),
-            (b"Parent".to_vec(), Object::Reference(pages_id)),
-            (b"Contents".to_vec(), Object::Reference(content_id)),
-            (
-                b"Resources".to_vec(),
-                Object::Dictionary(Dictionary::from_iter([(
-                    b"Font".to_vec(),
-                    Object::Dictionary(Dictionary::from_iter([(
-                        b"F1".to_vec(),
-                        Object::Reference(font_id),
-                    )])),
-                )])),
-            ),
-            (
-                b"MediaBox".to_vec(),
-                Object::Array(vec![
-                    Object::Integer(0),
-                    Object::Integer(0),
-                    Object::Integer(612),
-                    Object::Integer(792),
-                ]),
-            ),
-        ]));
-
-        doc.objects.insert(page_id, page);
-        page_ids.push(page_id);
-    }
-
-    if page_ids.is_empty() {
+    if page_contents.is_empty() {
+        // Create empty page
         let content_id = doc.add_object(Object::Stream(Stream {
             dict: Dictionary::new(),
             content: b"BT /F1 12 Tf 50 700 Td () Tj ET".to_vec(),
@@ -105,13 +270,50 @@ pub fn create_pdf(file_path: &str, text: &str, _author: Option<&str>) -> String 
                 Object::Array(vec![
                     Object::Integer(0),
                     Object::Integer(0),
-                    Object::Integer(612),
-                    Object::Integer(792),
+                    Object::Integer(config.page_width as i64),
+                    Object::Integer(config.page_height as i64),
                 ]),
             ),
         ]));
         doc.objects.insert(page_id, page);
         page_ids.push(page_id);
+    } else {
+        for content_str in &page_contents {
+            let content_id = doc.add_object(Object::Stream(Stream {
+                dict: Dictionary::new(),
+                content: content_str.as_bytes().to_vec(),
+                allows_compression: true,
+                start_position: None,
+            }));
+
+            let page_id = doc.new_object_id();
+            let page = Object::Dictionary(Dictionary::from_iter([
+                (b"Type".to_vec(), Object::Name(b"Page".to_vec())),
+                (b"Parent".to_vec(), Object::Reference(pages_id)),
+                (b"Contents".to_vec(), Object::Reference(content_id)),
+                (
+                    b"Resources".to_vec(),
+                    Object::Dictionary(Dictionary::from_iter([(
+                        b"Font".to_vec(),
+                        Object::Dictionary(Dictionary::from_iter([(
+                            b"F1".to_vec(),
+                            Object::Reference(font_id),
+                        )])),
+                    )])),
+                ),
+                (
+                    b"MediaBox".to_vec(),
+                    Object::Array(vec![
+                        Object::Integer(0),
+                        Object::Integer(0),
+                        Object::Integer(config.page_width as i64),
+                        Object::Integer(config.page_height as i64),
+                    ]),
+                ),
+            ]));
+            doc.objects.insert(page_id, page);
+            page_ids.push(page_id);
+        }
     }
 
     let pages = Object::Dictionary(Dictionary::from_iter([
@@ -324,6 +526,138 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_create_pdf_single_page() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_single.pdf");
+        let p = path.to_str().unwrap();
+
+        let res = create_pdf(p, "Short text", None);
+        assert!(res.contains("\"success\":true"));
+        assert!(res.contains("\"pages\":1"));
+
+        let doc = lopdf::Document::load(p).unwrap();
+        assert_eq!(doc.get_pages().len(), 1);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn test_create_pdf_multi_page() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_multipage.pdf");
+        let p = path.to_str().unwrap();
+
+        // Create 50 lines of text to trigger 2 pages
+        let mut text = String::new();
+        for i in 1..=50 {
+            text.push_str(&format!("Line {}\n", i));
+        }
+
+        let res = create_pdf(p, &text, None);
+        assert!(res.contains("\"success\":true"));
+        assert!(res.contains("\"pages\":2"));
+
+        let doc = lopdf::Document::load(p).unwrap();
+        assert_eq!(doc.get_pages().len(), 2);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn test_create_pdf_empty_text() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_empty.pdf");
+        let p = path.to_str().unwrap();
+
+        let res = create_pdf(p, "", None);
+        assert!(res.contains("\"success\":true"));
+        assert!(res.contains("\"pages\":1"));
+
+        let doc = lopdf::Document::load(p).unwrap();
+        assert_eq!(doc.get_pages().len(), 1);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn test_formatted_pdf_with_title() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_title.pdf");
+        let p = path.to_str().unwrap();
+
+        let config = PdfLayoutConfig {
+            title: Some("My Document".to_string()),
+            author: Some("Test Author".to_string()),
+            ..Default::default()
+        };
+
+        let res = create_formatted_pdf(p, "Body content here", &config);
+        assert!(res.contains("\"success\":true"));
+        assert!(res.contains("\"pages\":1"));
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn test_formatted_pdf_page_numbers() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_pagenum.pdf");
+        let p = path.to_str().unwrap();
+
+        let config = PdfLayoutConfig {
+            page_numbers: true,
+            ..Default::default()
+        };
+
+        let mut text = String::new();
+        for i in 1..=50 {
+            text.push_str(&format!("Line {}\n", i));
+        }
+
+        let res = create_formatted_pdf(p, &text, &config);
+        assert!(res.contains("\"success\":true"));
+        assert!(res.contains("\"pages\":2"));
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn test_formatted_pdf_explicit_page_break() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_pagebreak.pdf");
+        let p = path.to_str().unwrap();
+
+        let config = PdfLayoutConfig::default();
+        let text = "Page 1 content\x0cPage 2 content";
+
+        let res = create_formatted_pdf(p, text, &config);
+        assert!(res.contains("\"success\":true"));
+        assert!(res.contains("\"pages\":2"));
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn test_formatted_pdf_word_wrap() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_wrap.pdf");
+        let p = path.to_str().unwrap();
+
+        let config = PdfLayoutConfig {
+            page_width: 300.0, // Narrow page to force wrapping
+            margin_left: 10.0,
+            margin_right: 10.0,
+            ..Default::default()
+        };
+
+        let text = "This is a very long line that should wrap to multiple lines on this narrow page layout to test word wrapping logic";
+        let res = create_formatted_pdf(p, text, &config);
+        assert!(res.contains("\"success\":true"));
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
     fn test_merge_pdfs() {
         let dir = std::env::temp_dir();
         let path1 = dir.join("test_merge_1.pdf");
@@ -350,27 +684,5 @@ mod tests {
         let _ = std::fs::remove_file(path1);
         let _ = std::fs::remove_file(path2);
         let _ = std::fs::remove_file(path_out);
-    }
-
-    #[test]
-    fn test_create_pdf_multi_page() {
-        let dir = std::env::temp_dir();
-        let path = dir.join("test_multipage.pdf");
-        let p = path.to_str().unwrap();
-
-        // Create 50 lines of text to trigger 2 pages
-        let mut text = String::new();
-        for i in 1..=50 {
-            text.push_str(&format!("Line {}\n", i));
-        }
-
-        let res = create_pdf(p, &text, None);
-        assert!(res.contains("\"success\":true"));
-        assert!(res.contains("\"pages\":2"));
-
-        let doc = lopdf::Document::load(p).unwrap();
-        assert_eq!(doc.get_pages().len(), 2);
-
-        let _ = std::fs::remove_file(path);
     }
 }

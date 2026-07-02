@@ -621,7 +621,7 @@ impl OpendocServer {
     //  PDF TOOLS
     // ═══════════════════════════════════════════
 
-    #[tool(description = "Create a simple PDF with text")]
+    #[tool(description = "Create a simple PDF with text (auto word-wrap, multi-page)")]
     fn create_pdf(
         &self,
         #[tool(param)]
@@ -636,6 +636,55 @@ impl OpendocServer {
     ) -> String {
         let file_path = validate_path!(file_path);
         pdf::create_pdf(&file_path, &text, author.as_deref())
+    }
+
+    #[tool(description = "Create a PDF with full layout control: title page, page numbers, margins, font size, explicit page breaks (\\f)")]
+    fn create_formatted_pdf(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "File path to save the PDF")]
+        file_path: String,
+        #[tool(param)]
+        #[schemars(description = "Text content")]
+        text: String,
+        #[tool(param)]
+        #[schemars(description = "Optional document title (rendered centered on page 1)")]
+        title: Option<String>,
+        #[tool(param)]
+        #[schemars(description = "Optional author name")]
+        author: Option<String>,
+        #[tool(param)]
+        #[schemars(description = "Whether to show page numbers (default: false)")]
+        page_numbers: Option<bool>,
+        #[tool(param)]
+        #[schemars(description = "Font size in points (default: 12)")]
+        font_size: Option<f64>,
+        #[tool(param)]
+        #[schemars(description = "Top margin in points (default: 72 = 1 inch)")]
+        margin_top: Option<f64>,
+        #[tool(param)]
+        #[schemars(description = "Bottom margin in points (default: 72)")]
+        margin_bottom: Option<f64>,
+        #[tool(param)]
+        #[schemars(description = "Left margin in points (default: 72)")]
+        margin_left: Option<f64>,
+        #[tool(param)]
+        #[schemars(description = "Right margin in points (default: 72)")]
+        margin_right: Option<f64>,
+    ) -> String {
+        let file_path = validate_path!(file_path);
+        let config = pdf::PdfLayoutConfig {
+            title,
+            author,
+            page_numbers: page_numbers.unwrap_or(false),
+            font_size: font_size.unwrap_or(12.0),
+            margin_top: margin_top.unwrap_or(72.0),
+            margin_bottom: margin_bottom.unwrap_or(72.0),
+            margin_left: margin_left.unwrap_or(72.0),
+            margin_right: margin_right.unwrap_or(72.0),
+            ..Default::default()
+        };
+        pdf::create_formatted_pdf(&file_path, &text, &config)
     }
 
     #[tool(description = "Merge multiple PDFs into one file")]

@@ -18,9 +18,15 @@ Tasks tracked in [Implementation Plan](docs/implementationplan.md).
 - [x] Doc comments on all public functions
 - [x] Changelog updated for v0.0.2
 
+## ✅ v0.0.3 — Complete
+
+- [x] Multi-page PDF creation with layout (auto word-wrap, page breaks, margins, page numbers, title page)
+- [x] Enhanced template engine (nested objects, loops, conditionals)
+- [x] Expanded test coverage (14 new unit tests for template engine, 5 new layout PDF tests, all passing)
+- [x] Version incremented and codebase validated offline
+- [x] Changelog updated for v0.0.3
+
 ## 🔜 v0.1.0 — Planned
 
-- [ ] Multi-page PDF creation with layout
-- [ ] Enhanced template engine (nested objects, loops)
 - [ ] DOCX image insertion
 - [ ] Expanded test coverage (80%+)

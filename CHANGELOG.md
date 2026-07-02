@@ -78,6 +78,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated README.md with current tool list and format support
 - Updated architecture.md with IR-centric design
 - Updated spec.md reflecting consolidated tools
+- Updated changelog.md reflecting current release
 
 ### Fixed
 - PPTX `to_pdf()` placeholder replaced with real converter delegation
@@ -124,7 +125,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Modular handler architecture — each format is an independent module
 
 ### Technical Details
-
 - **Runtime:** Tokio async (single-threaded for stdio transport)
 - **DOCX engine:** `rdocx` 0.1 (pure Rust, no C dependencies)
 - **PPTX engine:** `pptx` 0.1 (pure Rust OPC XML manipulation)
@@ -134,7 +134,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Memory (idle):** ~3.5 MB RSS
 
 ### Known Limitations
-
 - PPTX image embedding returns a guidance message (not yet implemented)
 - PPTX→PDF conversion returns a guidance message (requires `office2pdf` crate)
 - PDF creation is single-page only with fixed positioning
@@ -149,7 +148,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Planned for v0.0.2
-
 - [ ] Unit tests for all handler functions
 - [ ] Integration tests for server tool dispatch
 - [ ] PPTX image embedding (full binary image insertion)
@@ -160,7 +158,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [ ] rust-toolchain.toml for MSRV pinning
 
 ### Planned for v0.1.0
-
 - [ ] XLSX support (create, read, edit via `rust_xlsxwriter` + `calamine`)
 - [ ] HTML read/write support
 - [ ] Markdown read/write support (as native format)
@@ -169,7 +166,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [ ] `office2pdf` integration for real office→PDF conversion
 
 ### Planned for v0.2.0
-
 - [ ] Text chunking for RAG (by heading, token count, byte size)
 - [ ] Batch directory processing (convert, extract, transform)
 - [ ] Document diff / comparison
@@ -179,7 +175,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [ ] Streaming output for large documents
 
 ### Planned for v1.0.0
-
 - [ ] Security audit
 - [ ] Path traversal protection / sandboxed directories
 - [ ] WASM compilation target

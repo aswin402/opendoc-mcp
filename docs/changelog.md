@@ -7,7 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.0.4] — Unreleased
+## [0.0.5] — 2026-07-02
+
+### Added
+
+#### Password & Encryption Support (PDF & Office Documents)
+- Added password decryption and loading support for PDFs using `lopdf`'s native decryption capabilities.
+- Implemented `load_to_ir_with_password` and `replace_text_with_password` in PDF handler.
+- Configured MCP tools (`open_document`, `read_document_text`, `search_document`, `replace_text`, `fill_template`, `validate_document`, `convert`) to support optional `password` parameter.
+- Handled offline office encryption restrictions with clear, user-friendly descriptive errors.
+
+#### Zip-based Image Extraction (DOCX / PPTX)
+- Created `extract_images_from_zip` function in `src/handlers/mod.rs` using the `zip` crate.
+- Added `extract_images` tool to MCP server, extracting embedded pictures from DOCX/PPTX media folders to target output directory.
+
+#### PDF Split by Page Range
+- Implemented `split_pdf` and `split_pdf_with_password` in `src/handlers/pdf.rs`.
+- Added `split_pdf` tool to MCP server to extract a subset of pages into a separate document (1-based, inclusive).
+
+### Fixed
+
+#### PDF Content Stream Serialization
+- Fixed page content stream missing `/Length` property in stream dictionaries. Page stream text is now fully compliant and parseable by standard PDF text extraction.
+- Wrapped plain-text content streams inside `BT` (Begin Text) and `ET` (End Text) operators for standard text extraction compatibility.
+- Added unit tests for split PDF, PDF encryption detection, image extraction, and password-protected PDF loading. All 100 tests pass successfully.
+
+## [0.0.4] — 2026-07-02
 
 ### Added
 

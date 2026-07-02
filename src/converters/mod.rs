@@ -16,6 +16,16 @@ pub fn convert(
     target_format: &str,
     output: &str,
 ) -> Result<ConversionResult, ConversionError> {
+    convert_with_password(source, target_format, output, None)
+}
+
+/// Convert a document from one format to another with an optional password
+pub fn convert_with_password(
+    source: &str,
+    target_format: &str,
+    output: &str,
+    password: Option<&str>,
+) -> Result<ConversionResult, ConversionError> {
     let source_path = Path::new(source);
     if !source_path.exists() {
         return Err(ConversionError::FileNotFound(source.to_string()));
@@ -39,15 +49,15 @@ pub fn convert(
         ("pptx", "pdf") => pptx_to_pdf(source, output),
 
         // PDF → anything
-        ("pdf", "txt" | "text") => pdf_to_text(source, output),
-        ("pdf", "md" | "markdown") => pdf_to_markdown(source, output),
+        ("pdf", "txt" | "text") => pdf_to_text_with_password(source, output, password),
+        ("pdf", "md" | "markdown") => pdf_to_markdown_with_password(source, output, password),
 
         // XLSX → anything
         ("xlsx", "csv") => xlsx_to_csv(source, output),
 
         // Generic: load as IR → export
         _ => {
-            let doc = crate::handlers::load_to_ir(source)
+            let doc = crate::handlers::load_to_ir_with_password(source, password)
                 .map_err(|e| ConversionError::ConversionFailed(e.to_string()))?;
             export(&doc, target_format, output)
         }
@@ -250,9 +260,15 @@ fn pptx_to_pdf(source: &str, output: &str) -> Result<ConversionResult, Conversio
     })
 }
 
-fn pdf_to_text(source: &str, output: &str) -> Result<ConversionResult, ConversionError> {
-    let doc = lopdf::Document::load(source)
+
+fn pdf_to_text_with_password(source: &str, output: &str, password: Option<&str>) -> Result<ConversionResult, ConversionError> {
+    let mut doc = lopdf::Document::load(source)
         .map_err(|e| ConversionError::ConversionFailed(e.to_string()))?;
+    if doc.is_encrypted() {
+        let pass = password.unwrap_or("");
+        doc.decrypt(pass.as_bytes())
+            .map_err(|e| ConversionError::ConversionFailed(format!("Failed to decrypt PDF: {}", e)))?;
+    }
     let pages: Vec<u32> = doc.get_pages().keys().copied().collect();
     let text = doc
         .extract_text(&pages)
@@ -268,9 +284,15 @@ fn pdf_to_text(source: &str, output: &str) -> Result<ConversionResult, Conversio
     })
 }
 
-fn pdf_to_markdown(source: &str, output: &str) -> Result<ConversionResult, ConversionError> {
-    let doc = lopdf::Document::load(source)
+
+fn pdf_to_markdown_with_password(source: &str, output: &str, password: Option<&str>) -> Result<ConversionResult, ConversionError> {
+    let mut doc = lopdf::Document::load(source)
         .map_err(|e| ConversionError::ConversionFailed(e.to_string()))?;
+    if doc.is_encrypted() {
+        let pass = password.unwrap_or("");
+        doc.decrypt(pass.as_bytes())
+            .map_err(|e| ConversionError::ConversionFailed(format!("Failed to decrypt PDF: {}", e)))?;
+    }
     let pages: Vec<u32> = doc.get_pages().keys().copied().collect();
     let text = doc
         .extract_text(&pages)

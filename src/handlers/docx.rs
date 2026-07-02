@@ -321,8 +321,15 @@ mod tests {
         assert_eq!(ir.tables[0].headers, vec!["ColA", "ColB"]);
         assert_eq!(ir.images.len(), 1);
 
+        // 8. Extract images
+        let out_img_dir = dir.join("extracted_docx_imgs");
+        let imgs = crate::handlers::extract_images_from_zip(p, out_img_dir.to_str().unwrap()).unwrap();
+        assert_eq!(imgs.len(), 1);
+        assert!(std::path::Path::new(&imgs[0]).exists());
+
         // Clean up
         let _ = std::fs::remove_file(path);
         let _ = std::fs::remove_file(img_path);
+        let _ = std::fs::remove_dir_all(out_img_dir);
     }
 }

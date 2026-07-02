@@ -98,17 +98,17 @@ This document outlines the phased implementation plan for `opendoc-mcp`, trackin
 |----|------|----------|-------------|--------|
 | 3.1 | Text chunking strategies (heading, token, size) | High | 2 days | ✅ (src/engine/chunk.rs) |
 | 3.2 | Document diff between versions | Medium | 2 days | ✅ (engine/diff.rs) |
-| 3.3 | Image extraction from DOCX/PPTX | Medium | 2 days | ❌ |
-| 3.4 | PDF split by page range | Low | 1 day | ❌ |
+| 3.3 | Image extraction from DOCX/PPTX | Medium | 2 days | ✅ (src/handlers/mod.rs) |
+| 3.4 | PDF split by page range | Low | 1 day | ✅ (src/handlers/pdf.rs) |
 | 3.5 | Batch operations (convert all X to Y) | High | 1 day | ✅ (src/batch/) |
-| 3.6 | Password/encryption support | Low | 2 days | ❌ |
+| 3.6 | Password/encryption support | Low | 2 days | ✅ (src/handlers/pdf.rs) |
 
 ### Deliverables
 
 - [x] Text chunking with configurable strategies
-- [ ] Image extraction from office documents
-- [ ] PDF split and merge enhancements
-- [ ] Published as v0.0.4
+- [x] Image extraction from office documents
+- [x] PDF split and merge enhancements
+- [x] Published as v0.0.5
 
 ---
 

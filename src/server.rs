@@ -41,10 +41,13 @@ impl OpendocServer {
         #[tool(param)]
         #[schemars(description = "Level of detail to return: 'summary' (metadata + outline + counts), 'metadata_only' (metadata only), or 'full' (all content including paragraphs and tables)")]
         detail_level: Option<String>,
+        #[tool(param)]
+        #[schemars(description = "Optional password for encrypted documents")]
+        password: Option<String>,
     ) -> String {
         let file_path = validate_path!(file_path);
         let detail = detail_level.unwrap_or_else(|| "full".to_string());
-        match handlers::load_to_ir(&file_path) {
+        match handlers::load_to_ir_with_password(&file_path, password.as_deref()) {
             Ok(ir) => {
                 match detail.as_str() {
                     "metadata_only" => {
@@ -95,9 +98,12 @@ impl OpendocServer {
         #[tool(param)]
         #[schemars(description = "File path to the document")]
         file_path: String,
+        #[tool(param)]
+        #[schemars(description = "Optional password for encrypted documents")]
+        password: Option<String>,
     ) -> String {
         let file_path = validate_path!(file_path);
-        match handlers::load_to_ir(&file_path) {
+        match handlers::load_to_ir_with_password(&file_path, password.as_deref()) {
             Ok(ir) => {
                 let text: Vec<String> = ir.paragraphs.iter().map(|p| p.text.clone()).collect();
                 let content = text.join("\n");
@@ -124,9 +130,12 @@ impl OpendocServer {
         #[tool(param)]
         #[schemars(description = "If true, treat query as a regex pattern")]
         use_regex: Option<bool>,
+        #[tool(param)]
+        #[schemars(description = "Optional password for encrypted documents")]
+        password: Option<String>,
     ) -> String {
         let file_path = validate_path!(file_path);
-        match handlers::load_to_ir(&file_path) {
+        match handlers::load_to_ir_with_password(&file_path, password.as_deref()) {
             Ok(ir) => {
                 let results = search::search_document(&ir, &query, use_regex.unwrap_or(false));
                 serde_json::json!({
@@ -152,6 +161,9 @@ impl OpendocServer {
         #[tool(param)]
         #[schemars(description = "Replacement text")]
         replace: String,
+        #[tool(param)]
+        #[schemars(description = "Optional password for encrypted documents")]
+        password: Option<String>,
     ) -> String {
         let file_path = validate_path!(file_path);
         let path = std::path::Path::new(&file_path);
@@ -163,10 +175,13 @@ impl OpendocServer {
 
         match ext.as_str() {
             "docx" => {
+                if password.is_some() {
+                    return serde_json::json!({"error": "Password decryption for Office documents (.docx) is not supported under offline mode due to missing office_crypto library. Encrypted PDFs are fully supported."}).to_string();
+                }
                 handlers::docx::find_replace_text(&file_path, &find, &replace)
             }
             "pdf" => {
-                handlers::pdf::replace_text(&file_path, &find, &replace)
+                handlers::pdf::replace_text_with_password(&file_path, &find, &replace, password.as_deref())
             }
             "txt" | "text" => {
                 match std::fs::read_to_string(&file_path) {
@@ -190,7 +205,7 @@ impl OpendocServer {
                 }
             }
             _ => {
-                match handlers::load_to_ir(&file_path) {
+                match handlers::load_to_ir_with_password(&file_path, password.as_deref()) {
                     Ok(mut ir) => {
                         let count = replace::replace_text(&mut ir, &find, &replace);
                         // Try to persist via generic export for writable formats
@@ -299,6 +314,9 @@ impl OpendocServer {
         #[tool(param)]
         #[schemars(description = "JSON object of key-value pairs to fill")]
         variables: serde_json::Value,
+        #[tool(param)]
+        #[schemars(description = "Optional password for encrypted documents")]
+        password: Option<String>,
     ) -> String {
         let file_path = validate_path!(file_path);
         let vars: Vec<(String, String)> = if let serde_json::Value::Object(map) = variables {
@@ -368,7 +386,7 @@ impl OpendocServer {
                 }
             }
             _ => {
-                match handlers::load_to_ir(&file_path) {
+                match handlers::load_to_ir_with_password(&file_path, password.as_deref()) {
                     Ok(mut ir) => {
                         let count = template::fill_template(&mut ir, &vars);
                         // Try to persist via generic export for writable formats
@@ -409,9 +427,12 @@ impl OpendocServer {
         #[tool(param)]
         #[schemars(description = "File path to the document")]
         file_path: String,
+        #[tool(param)]
+        #[schemars(description = "Optional password for encrypted documents")]
+        password: Option<String>,
     ) -> String {
         let file_path = validate_path!(file_path);
-        match handlers::load_to_ir(&file_path) {
+        match handlers::load_to_ir_with_password(&file_path, password.as_deref()) {
             Ok(ir) => {
                 let result = crate::validators::validate_document(&ir);
                 serde_json::to_string_pretty(&result).unwrap_or_default()
@@ -436,12 +457,68 @@ impl OpendocServer {
         #[tool(param)]
         #[schemars(description = "Output file path")]
         output: String,
+        #[tool(param)]
+        #[schemars(description = "Optional password for encrypted source documents")]
+        password: Option<String>,
     ) -> String {
         let source = validate_path!(source);
         let output = validate_path!(output);
-        match crate::converters::convert(&source, &target_format, &output) {
+        match crate::converters::convert_with_password(&source, &target_format, &output, password.as_deref()) {
             Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
             Err(e) => serde_json::json!({"error": e.to_string()}).to_string(),
+        }
+    }
+
+    #[tool(description = "Extract embedded images from a DOCX or PPTX document and save them to a directory")]
+    fn extract_images(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "File path to the DOCX or PPTX document")]
+        file_path: String,
+        #[tool(param)]
+        #[schemars(description = "Directory where the extracted images should be saved")]
+        output_dir: String,
+    ) -> String {
+        let file_path = validate_path!(file_path);
+        let output_dir = validate_path!(output_dir);
+        match handlers::extract_images_from_zip(&file_path, &output_dir) {
+            Ok(images) => serde_json::json!({
+                "success": true,
+                "extracted_count": images.len(),
+                "images": images
+            }).to_string(),
+            Err(e) => serde_json::json!({"error": e}).to_string(),
+        }
+    }
+
+    #[tool(description = "Split a PDF document into a subset of pages specified by a start and end page (1-based, inclusive)")]
+    fn split_pdf(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "File path to the PDF document to split")]
+        file_path: String,
+        #[tool(param)]
+        #[schemars(description = "File path to save the split PDF")]
+        output_path: String,
+        #[tool(param)]
+        #[schemars(description = "Start page number (1-based, inclusive)")]
+        start_page: u32,
+        #[tool(param)]
+        #[schemars(description = "End page number (1-based, inclusive)")]
+        end_page: u32,
+        #[tool(param)]
+        #[schemars(description = "Optional password for encrypted documents")]
+        password: Option<String>,
+    ) -> String {
+        let file_path = validate_path!(file_path);
+        let output_path = validate_path!(output_path);
+        match handlers::pdf::split_pdf_with_password(&file_path, &output_path, start_page, end_page, password.as_deref()) {
+            Ok(_) => serde_json::json!({
+                "success": true,
+                "split_path": output_path,
+                "pages_kept": (end_page + 1 - start_page)
+            }).to_string(),
+            Err(e) => serde_json::json!({"error": e}).to_string(),
         }
     }
 

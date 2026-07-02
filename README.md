@@ -254,8 +254,8 @@ opendoc-mcp/
 **v0.0.6 ✅** — Spreadsheet Write, Update, & Edit Support (XLSX)
 **v0.0.7 ✅** — Visual Document Diffing (HTML/Markdown highlights)
 **v0.0.8 ✅** — Enhanced DOCX/PPTX styling and layout options
-**v0.0.9 🔄** — OCR Integration
-**v0.1.0** — WASM target, digital signatures, document comparison, streaming
+**v0.0.9 ✅** — Scanned PDF & Image OCR Integration
+**v0.1.0 🔄** — WASM target, digital signatures, document comparison, streaming
 **v1.0.0** — Production-ready: full format coverage, enterprise security, OCR
 
 See [docs/implementationplan.md](docs/implementationplan.md) for details.

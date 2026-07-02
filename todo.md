@@ -51,6 +51,12 @@ Tasks tracked in [Implementation Plan](docs/implementationplan.md).
 
 - [x] Enhanced DOCX/PPTX styling and layout options
 
-## 🔜 v0.0.9 — Planned
+## ✅ v0.0.9 — Complete
 
-- [ ] Scanned PDF OCR integration
+- [x] Scanned PDF OCR integration
+
+## 🔜 v0.1.0 — Planned
+
+- [ ] WASM target support
+- [ ] Cryptographic digital signatures & PDF signing
+- [ ] Streaming document comparison and layout rendering

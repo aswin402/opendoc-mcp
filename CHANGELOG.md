@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.0.10] — 2026-07-02
+
+### Added
+
+#### Scanned PDF OCR Integration
+- Implemented robust offline OCR using system-installed Tesseract CLI and Poppler's `pdftoppm` rendering engine.
+- Supports PDF rendering to 150 DPI PNG images, sorting and routing individual pages to Tesseract, and stitching extracted text back into document structure.
+- Supports direct standalone image file OCR (PNG, JPG, BMP, TIFF) using Tesseract.
+- Added dynamic check for system-level OCR tools via `is_ocr_available()`.
+- Exposed Tesseract available languages list using `tesseract --list-langs` output.
+- Added comprehensive unit tests (`test_ocr_image_lifecycle`) with uncompressed 1x1 BMP data validation.
+
 ## [0.0.9] — 2026-07-02
 
 ### Added

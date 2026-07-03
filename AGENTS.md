@@ -66,7 +66,7 @@ Every tool uses `validate_path!()` macro (defined in `server.rs`) which:
 | `cli` | ✅ | clap (CLI subcommands) |
 | `server` | ✅ | rmcp + tokio (MCP server) |
 | `ocr` | ❌ | OCR (placeholder until v0.2.0) |
-| `wasm` | ❌ | WASM target (future) |
+| `wasm` | ❌ | WASM target library compilation (builds with `--no-default-features` for edge/browser execution) |
 
 ### Error Handling Pattern
 Handlers never panic. Every error is `serde_json::json!({"error": ...}).to_string()`.

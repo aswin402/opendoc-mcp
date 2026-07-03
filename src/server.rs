@@ -678,53 +678,53 @@ impl OpendocServer {
         docx::create_document(&file_path, title.as_deref())
     }
 
-    #[tool(description = "Add a paragraph with formatting and layout to a DOCX")]
+    #[tool(description = "Add a paragraph with formatting and layout to a DOCX. Keep layout clean; use Georgia for headings and Calibri/Arial for body text. Never manually insert Unicode bullets.")]
     fn docx_add_paragraph(
         &self,
         #[tool(param)]
         #[schemars(description = "File path to the document")]
         file_path: String,
         #[tool(param)]
-        #[schemars(description = "Text content")]
+        #[schemars(description = "Text content. Never insert manual bullet character lists; use standard paragraph lines.")]
         text: String,
         #[tool(param)]
-        #[schemars(description = "Optional bold")]
+        #[schemars(description = "Optional bold. Use for titles and table headers.")]
         bold: Option<bool>,
         #[tool(param)]
-        #[schemars(description = "Optional italic")]
+        #[schemars(description = "Optional italic. Use for captions, quotes, or sub-details.")]
         italic: Option<bool>,
         #[tool(param)]
-        #[schemars(description = "Optional underline")]
+        #[schemars(description = "Optional underline. WARNING: Avoid underlining titles (use whitespace or color instead).")]
         underline: Option<bool>,
         #[tool(param)]
-        #[schemars(description = "Optional font size in points")]
+        #[schemars(description = "Optional font size in points (e.g. 24-28 for titles, 14-16 for subheadings, 11-12 for body).")]
         font_size: Option<f32>,
         #[tool(param)]
-        #[schemars(description = "Optional font family name")]
+        #[schemars(description = "Optional font family name. Pair Georgia/Cambria (headings) with Arial/Calibri (body).")]
         font_family: Option<String>,
         #[tool(param)]
-        #[schemars(description = "Optional font color (Hex RGB, e.g. FF0000)")]
+        #[schemars(description = "Optional font color (Hex RGB, e.g. F7931A for Bitcoin Gold, 1E2761 for Navy).")]
         color: Option<String>,
         #[tool(param)]
-        #[schemars(description = "Optional font highlight color")]
+        #[schemars(description = "Optional font highlight color (Hex RGB, e.g. FFFF00 for yellow).")]
         highlight: Option<String>,
         #[tool(param)]
-        #[schemars(description = "Optional alignment: left, center, right, justify")]
+        #[schemars(description = "Optional alignment: left, center, right, justify. Left-align body paragraphs; center titles.")]
         alignment: Option<String>,
         #[tool(param)]
-        #[schemars(description = "Optional shading fill color (Hex RGB)")]
+        #[schemars(description = "Optional shading fill color (Hex RGB) to highlight whole paragraph block.")]
         shading: Option<String>,
         #[tool(param)]
-        #[schemars(description = "Optional line spacing in points")]
+        #[schemars(description = "Optional line spacing. Recommended: 1.15 to 1.3 for optimal readability.")]
         line_spacing: Option<f64>,
         #[tool(param)]
-        #[schemars(description = "Optional keep with next paragraph")]
+        #[schemars(description = "Optional keep with next paragraph to prevent orphaned headers.")]
         keep_with_next: Option<bool>,
         #[tool(param)]
-        #[schemars(description = "Optional keep lines together")]
+        #[schemars(description = "Optional keep lines together inside a single page.")]
         keep_together: Option<bool>,
         #[tool(param)]
-        #[schemars(description = "Optional page break before paragraph")]
+        #[schemars(description = "Optional page break before paragraph. Use to structure exactly 10-page chapters.")]
         page_break_before: Option<bool>,
     ) -> String {
         let file_path = validate_path!(file_path);
@@ -747,41 +747,41 @@ impl OpendocServer {
         )
     }
 
-    #[tool(description = "Add a table to a DOCX document with optional styling")]
+    #[tool(description = "Add a table to a DOCX document with premium styling. Tables must fit clean column boundaries; use alternating rows and clear header shading.")]
     fn docx_add_table(
         &self,
         #[tool(param)]
         #[schemars(description = "File path to the document")]
         file_path: String,
         #[tool(param)]
-        #[schemars(description = "Headers (JSON array of strings)")]
+        #[schemars(description = "Headers (JSON array of strings). E.g. ['Item', 'Quantity', 'Cost'].")]
         headers: Vec<String>,
         #[tool(param)]
-        #[schemars(description = "Data rows (JSON array of arrays)")]
+        #[schemars(description = "Data rows (JSON array of arrays of strings). Must match header length.")]
         data: Vec<Vec<String>>,
         #[tool(param)]
-        #[schemars(description = "Optional table width percentage (0 to 100)")]
+        #[schemars(description = "Optional table width percentage (0 to 100). Default is 100.0 (full width of text margins).")]
         width_pct: Option<f64>,
         #[tool(param)]
-        #[schemars(description = "Optional table alignment: left, center, right, justify")]
+        #[schemars(description = "Optional table alignment: left, center, right, justify. Center is highly recommended for structured reports.")]
         alignment: Option<String>,
         #[tool(param)]
-        #[schemars(description = "Optional table border style: none, single, thick, double, dotted, dashed, dotdash, wave")]
+        #[schemars(description = "Optional table border style. Recommended: 'single' for professional clean lines.")]
         border_style: Option<String>,
         #[tool(param)]
-        #[schemars(description = "Optional border size in eighths of a pt")]
+        #[schemars(description = "Optional border size in eighths of a pt. Recommended: 4 to 8 for subtle borders.")]
         border_size: Option<u32>,
         #[tool(param)]
-        #[schemars(description = "Optional border color (Hex RGB, e.g. CCCCCC)")]
+        #[schemars(description = "Optional border color (Hex RGB, e.g. CCCCCC for subtle light grey, avoid solid black).")]
         border_color: Option<String>,
         #[tool(param)]
-        #[schemars(description = "Optional shading header color (Hex RGB)")]
+        #[schemars(description = "Optional shading header color (Hex RGB, e.g. 1E2761 for deep navy, F7931A for gold).")]
         shading_header: Option<String>,
         #[tool(param)]
-        #[schemars(description = "Optional shading data cell color (Hex RGB)")]
+        #[schemars(description = "Optional shading data cell color (Hex RGB, e.g. F5F5F5 for zebra alternating rows).")]
         shading_data: Option<String>,
         #[tool(param)]
-        #[schemars(description = "Optional prevent page breaks inside rows")]
+        #[schemars(description = "Optional prevent page breaks inside rows (default: true). Ensures clean layout rendering.")]
         cant_split: Option<bool>,
     ) -> String {
         let file_path = validate_path!(file_path);
@@ -839,32 +839,32 @@ impl OpendocServer {
         pptx::create_presentation(&file_path, title.as_deref())
     }
 
-    #[tool(description = "Add a slide with title, optional body bullet points, and custom layout styling")]
+    #[tool(description = "Add a slide with title, optional body bullet points, and custom layout styling. Enforce 60-30-10 color rule. Use dark/light sandwich structures. Never use accent lines under titles.")]
     fn pptx_add_slide(
         &self,
         #[tool(param)]
         #[schemars(description = "File path to the presentation")]
         file_path: String,
         #[tool(param)]
-        #[schemars(description = "Slide title")]
+        #[schemars(description = "Slide title. Use concise, active titles (36-44pt).")]
         title: String,
         #[tool(param)]
-        #[schemars(description = "Optional bullet point content (JSON array)")]
+        #[schemars(description = "Optional bullet point content (JSON array of strings). E.g. ['Point 1', 'Point 2'].")]
         body: Option<Vec<String>>,
         #[tool(param)]
-        #[schemars(description = "Optional slide background color (Hex RGB, e.g. FFFFFF)")]
+        #[schemars(description = "Optional slide background color (Hex RGB, e.g. 1A1A2E for deep space navy dark-mode, FFFFFF for clean light mode).")]
         bg_color: Option<String>,
         #[tool(param)]
-        #[schemars(description = "Optional font size for body points")]
+        #[schemars(description = "Optional font size for body points. Recommended: 14-16pt for optimal visibility.")]
         font_size: Option<f32>,
         #[tool(param)]
-        #[schemars(description = "Optional font color (Hex RGB, e.g. 000000)")]
+        #[schemars(description = "Optional font color (Hex RGB, e.g. FFFFFF for dark slides, 333333 for light slides. Ensure contrast!).")]
         font_color: Option<String>,
         #[tool(param)]
-        #[schemars(description = "Optional font family name")]
+        #[schemars(description = "Optional font family name. Pair Georgia/Cambria (title) with Arial/Calibri/Segoe UI (body).")]
         font_family: Option<String>,
         #[tool(param)]
-        #[schemars(description = "Optional alignment: left, center, right, justify")]
+        #[schemars(description = "Optional alignment: left, center, right, justify. Left-align body bullet text; center title slides.")]
         alignment: Option<String>,
     ) -> String {
         let file_path = validate_path!(file_path);
@@ -953,7 +953,7 @@ impl OpendocServer {
         pdf::create_pdf(&file_path, &text, author.as_deref())
     }
 
-    #[tool(description = "Create a PDF with full layout control: title page, page numbers, margins, font size, explicit page breaks (\\f)")]
+    #[tool(description = "Create a PDF with premium layout control: title page, page numbers, margins, font size. Use explicit Form Feed page breaks ('\\x0c' or '\\f') to split pages. Never use unicode subscript/superscripts.")]
     #[allow(clippy::too_many_arguments)]
     fn create_formatted_pdf(
         &self,
@@ -961,31 +961,31 @@ impl OpendocServer {
         #[schemars(description = "File path to save the PDF")]
         file_path: String,
         #[tool(param)]
-        #[schemars(description = "Text content")]
+        #[schemars(description = "Text content. Separate chapters/pages using Form Feed '\\x0c' or '\\f' characters.")]
         text: String,
         #[tool(param)]
-        #[schemars(description = "Optional document title (rendered centered on page 1)")]
+        #[schemars(description = "Optional document title (rendered centered on page 1).")]
         title: Option<String>,
         #[tool(param)]
-        #[schemars(description = "Optional author name")]
+        #[schemars(description = "Optional author name (printed on page 1 below title).")]
         author: Option<String>,
         #[tool(param)]
-        #[schemars(description = "Whether to show page numbers (default: false)")]
+        #[schemars(description = "Whether to show page numbers in footer (default: false).")]
         page_numbers: Option<bool>,
         #[tool(param)]
-        #[schemars(description = "Font size in points (default: 12)")]
+        #[schemars(description = "Font size in points (default: 12).")]
         font_size: Option<f64>,
         #[tool(param)]
-        #[schemars(description = "Top margin in points (default: 72 = 1 inch)")]
+        #[schemars(description = "Top margin in points (default: 72 = 1 inch).")]
         margin_top: Option<f64>,
         #[tool(param)]
-        #[schemars(description = "Bottom margin in points (default: 72)")]
+        #[schemars(description = "Bottom margin in points (default: 72 = 1 inch).")]
         margin_bottom: Option<f64>,
         #[tool(param)]
-        #[schemars(description = "Left margin in points (default: 72)")]
+        #[schemars(description = "Left margin in points (default: 72 = 1 inch).")]
         margin_left: Option<f64>,
         #[tool(param)]
-        #[schemars(description = "Right margin in points (default: 72)")]
+        #[schemars(description = "Right margin in points (default: 72 = 1 inch).")]
         margin_right: Option<f64>,
     ) -> String {
         let file_path = validate_path!(file_path);

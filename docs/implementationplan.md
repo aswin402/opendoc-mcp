@@ -1,181 +1,84 @@
 # Implementation Plan — opendoc-mcp
 
-**Version:** 0.0.4-dev
+**Version:** 0.0.10-dev
 **Status:** Active
-**Last Updated:** 2026-07-02
+**Last Updated:** 2026-07-03
 
 ---
 
 ## 1. Overview
 
-This document outlines the phased implementation plan for `opendoc-mcp`, tracking progress from the current v0.0.1 through v1.0.0.
+This document outlines the phased implementation plan for `opendoc-mcp`, tracking progress from the current v0.0.10-dev through v1.0.0.
 
-### Current Status (v0.0.4-dev)
+### Current Status (v0.0.10)
 
 | Component | Status | Notes |
 |-----------|--------|-------|
 | MCP Server framework | ✅ Complete | rmcp SDK, stdio transport, tool registration, doc:// resources |
-| DOCX handler | ✅ Complete | Create, open, edit, convert |
-| PPTX handler | ✅ Complete | Create, open, edit, convert, image embedding, PDF export |
+| DOCX handler | ✅ Complete | Create, open, edit, convert, and custom layout/styles |
+| PPTX handler | ✅ Complete | Create, open, edit, convert, image embedding, slide backgrounds/fonts |
 | PDF handler | ✅ Complete | Create, open, merge, extract, replace, AcroForm fill |
-| XLSX handler | ✅ Complete | read via calamine, write via rust_xlsxwriter |
+| XLSX handler | ✅ Complete | read via calamine, write via rust_xlsxwriter, cell updates |
 | HTML handler | ✅ Complete | read/write via scraper + html5ever |
 | Markdown handler | ✅ Complete | read/write via pulldown-cmark |
 | CSV handler | ✅ Complete | read/write |
 | IR (Internal Representation) | ✅ Complete | Document/Paragraph/Table/Section/Image/Metadata pipeline |
-| Engine (search/replace/template/diff/complexity) | ✅ Complete | LCS diff, regex search, template filling, complexity heuristics |
+| Engine | ✅ Complete | LCS diff, regex search, template filling, complexity heuristics |
 | Batch processor | ✅ Complete | Rayon-parallel directory conversion |
-| Validators | ✅ Complete | Structure validation |
-| Security | ✅ Complete | Path validation, OPENDOC_ALLOWED_DIRS sandbox |
-| CLI | ✅ Complete | clap subcommands (convert, extract, batch, merge, validate, info, diff, formats, serve) |
-| Error handling | ✅ Complete | Structured JSON with error_code, category, suggestion |
-| Logging | ✅ Complete | tracing subscriber with env filter |
-| Tests (unit + integration) | ✅ 20 tests | IR pipeline tests |
-| CI (GitHub Actions) | ✅ Complete | Linux build + test + clippy |
-| Documentation | ✅ Complete | README, AGENTS.md, PRD, Architecture, Spec, Changelog |
-| PPTX image embedding | ✅ Complete | Binary image insertion via zip crate |
-| PPTX→PDF conversion | ✅ Complete | Delegates to converters module |
-| Doc comments | ✅ Complete | All public functions documented |
-| Benchmark suite | ✅ Complete | Criterion benchmarks (3 benchmarks) |
-| rust-toolchain.toml | ✅ Complete | MSRV pinned to 1.75.0 |
-| OCR | ❌ Feature-gated | Placeholder module behind `ocr` feature flag |
-| WASM | ❌ Not started | Future target |
+| CLI | ✅ Complete | clap subcommands |
+| OCR pipeline | ✅ Complete | Poppler pdftoppm + Tesseract CLI integration |
 
 ---
 
-## 2. Phase 1: Core Polish (v0.0.2) ✅ COMPLETED
+## 2. Phase 1 to 4: Completed Milestones
 
-**Focus:** Replace placeholders, add benchmarks, docs, MSRV.
-
-### Tasks
-
-| ID | Task | Priority | Est. Effort | Status |
-|----|------|----------|-------------|--------|
-| 1.1 | Real PPTX image embedding (binary image insertion) | Medium | 1 day | ✅ |
-| 1.2 | PPTX→PDF conversion via converters module | Medium | 1 day | ✅ |
-| 1.3 | Doc comments on all public functions | Medium | 0.5 day | ✅ |
-| 1.4 | Criterion benchmark suite | Low | 1 day | ✅ |
-| 1.5 | rust-toolchain.toml for MSRV pinning | Low | 0.5 day | ✅ |
-| 1.6 | Update changelog and bump version | Low | 0.5 day | ✅ |
-
-### Deliverables
-
-- [x] PPTX image embedding works end-to-end
-- [x] PPTX→PDF conversion produces valid output
-- [x] `cargo doc --no-deps` passes with no warnings
-- [x] Criterion benchmarks for key operations
-- [x] MSRV pinned in rust-toolchain.toml
-- [x] v0.0.2 released (commit `764c508`)
-
----
-
-## 3. Phase 2: Format Deepening (v0.0.3)
-
-**Focus:** Multi-page PDF, template engine, DOCX images, test coverage.
-
-| ID | Task | Priority | Est. Effort | Status |
-|----|------|----------|-------------|--------|
-| 2.1 | Multi-page PDF creation with layout | High | 2 days | ✅ |
-| 2.2 | Enhanced template engine (nested objects, loops) | Medium | 2 days | ✅ |
-| 2.3 | DOCX image insertion | Medium | 1 day | ✅ |
-| 2.4 | Expanded test coverage (80%+) | High | 2 days | ✅ |
-
-### Deliverables
-
-- [x] Multi-page PDF with text flow, page breaks, images
-- [x] Template engine supports nested objects and loops
+### Phase 1: Core Polish & Formatting (v0.0.2 - v0.0.4) ✅
+- [x] Multi-page PDF creation with layout flows and page breaks
+- [x] Template engine with support for nested objects and loops
 - [x] DOCX image insertion via rdocx
-- [x] >80% code coverage
-- [x] Published as v0.0.3
+- [x] rust-toolchain.toml for MSRV pinning (1.75.0)
 
----
-
-## 4. Phase 3: AI Agent Optimization (v0.0.4)
-
-**Focus:** RAG pipeline support, document intelligence, batch processing features.
-
-| ID | Task | Priority | Est. Effort | Status |
-|----|------|----------|-------------|--------|
-| 3.1 | Text chunking strategies (heading, token, size) | High | 2 days | ✅ (src/engine/chunk.rs) |
-| 3.2 | Document diff between versions | Medium | 2 days | ✅ (engine/diff.rs) |
-| 3.3 | Image extraction from DOCX/PPTX | Medium | 2 days | ✅ (src/handlers/mod.rs) |
-| 3.4 | PDF split by page range | Low | 1 day | ✅ (src/handlers/pdf.rs) |
-| 3.5 | Batch operations (convert all X to Y) | High | 1 day | ✅ (src/batch/) |
-| 3.6 | Password/encryption support | Low | 2 days | ✅ (src/handlers/pdf.rs) |
-
-### Deliverables
-
-- [x] Text chunking with configurable strategies
-- [x] Image extraction from office documents
+### Phase 2: RAG & Chunking (v0.0.5) ✅
+- [x] Text chunking with configurable strategies (heading, fixed, token)
 - [x] PDF split and merge enhancements
-- [x] Published as v0.0.5
+- [x] Password decryption support for PDFs
+
+### Phase 3: Spreadsheet Editing & Diffing (v0.0.6 - v0.0.7) ✅
+- [x] Spreadsheet Write, Update, & Edit Support (XLSX)
+- [x] Visual Document Diffing (HTML/Markdown highlights with word-level edits)
+
+### Phase 4: Formatting & OCR (v0.0.8 - v0.0.10) ✅
+- [x] Enhanced DOCX/PPTX styling and layout options
+- [x] Scanned PDF OCR integration (Tesseract CLI + pdftoppm)
 
 ---
 
-## 5. Phase 4: Enterprise & Ecosystem (v1.0.0)
+## 3. Phase 5: Agent-Optimized Intelligence (v0.1.0) 🔜
 
-**Focus:** Production readiness, WASM, signatures, streaming.
+**Focus:** Multi-modal visual reasoning, archive pipelines, structured metadata extraction, and WebAssembly compilation.
+
+| ID | Task | Priority | Est. Effort | Status | Description |
+|----|------|----------|-------------|--------|-------------|
+| 5.1 | Document screenshots for visual reasoning | High | 2 days | ❌ | Render document pages to PNG/JPEG image paths so multimodal agents can view charts/tables. |
+| 5.2 | Recursive ZIP/Archive extraction | Medium | 1 day | ❌ | Process mixed archive files recursively and output clean Markdown digests. |
+| 5.3 | Structured Domain Template extraction | High | 3 days | ❌ | Extract structured entities using pre-defined legal, financial, and spatio-temporal templates. |
+| 5.4 | WASM Target support | Medium | 3 days | ❌ | Configure compilation for browser/edge execution (`wasm32-unknown-unknown`). |
+
+### Deliverables
+- [ ] Tool to render PDF/DOCX/PPTX pages to images for agent vision
+- [ ] Tool to extract, parse, and summarize mixed files inside `.zip` archives
+- [ ] Rule-based template extraction engine (`src/engine/extract.rs`) for finance and contracts
+- [ ] WASM target build and compilation instructions
+
+---
+
+## 4. Phase 6: Enterprise Hardening (v1.0.0) 🔜
+
+**Focus:** Production readiness, digital signatures, HTTP transport, and enterprise security.
 
 | ID | Task | Priority | Est. Effort | Status |
 |----|------|----------|-------------|--------|
-| 4.1 | Security audit | High | 1 week | ❌ |
-| 4.2 | WASM compilation target | High | 1 week | ❌ |
-| 4.3 | Streamable HTTP transport | Medium | 3 days | ❌ |
-| 4.4 | Digital signatures (PDF) | Medium | 3 days | ❌ |
-| 4.5 | PDF/A validation | Medium | 2 days | ❌ |
-| 4.6 | Streamable output for large docs | Low | 2 days | ❌ |
-
-### Deliverables
-
-- [ ] Security audit completed
-- [ ] WASM package publishable via npm
-- [ ] HTTP transport support
-- [ ] Published as v1.0.0
-
----
-
-## 6. Architecture
-
-```
-DOCX ──┐
-PPTX ──┤
-PDF  ──┤──▶  IR  ──▶  engine (search/replace/template/diff) ──▶  export
-XLSX ──┤
-HTML ──┤
-MD/CSV─┘
-```
-
-Every format handler implements `load_to_ir()` (import) and `save_from_ir()` (export). The engine operates exclusively on IR, making all operations format-agnostic.
-
----
-
-## 7. Testing Strategy
-
-| Level | Tool | Coverage Target |
-|-------|------|-----------------|
-| Unit tests | `#[test]` | 80%+ of handler functions |
-| Integration tests | `#[test]` | 100% of MCP tools |
-| Benchmarks | `criterion` | Key operations (create, open, convert) |
-| Doc tests | `#[doc]` | All public API examples |
-
----
-
-## 8. Risk Matrix
-
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|------------|
-| `rdocx` / `pptx` crate unmaintained | Low | High | Keep fork-ready; fallback crates |
-| MCP spec changes | Medium | Medium | `rmcp` follows spec; bump on change |
-| Performance regressions | Medium | Medium | Benchmark suite in CI |
-| Rust compatibility | Low | Medium | MSRV pinning + `cargo deny` |
-| Path injection / huge files | Medium | Medium | Security module + size limits |
-
----
-
-## 9. Release Cadence
-
-| Phase | Cadence | Target |
-|-------|---------|--------|
-| v0.0.x (Pre-alpha) | As needed | Bug fixes, polish |
-| v0.1.x (Alpha) | Monthly | Major features |
-| v1.0.0 (Stable) | — | Production readiness |
+| 6.1 | Cryptographic digital signatures (PDF) | High | 3 days | ❌ |
+| 6.2 | Security audit and sandbox validation | High | 5 days | ❌ |
+| 6.3 | Streamable HTTP transport and streaming comparison | Medium | 3 days | ❌ |
+| 6.4 | PDF/A standard compliance validator | Low | 2 days | ❌ |

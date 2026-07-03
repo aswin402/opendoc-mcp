@@ -1,5 +1,5 @@
 use serde::{Serialize, Deserialize};
-use crate::ir::Document;
+use crate::ir::{Document, Paragraph};
 use regex::Regex;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,6 +32,21 @@ pub struct TimelineTemplate {
     pub events: Vec<TimelineEvent>,
 }
 
+fn get_effective_paragraphs(doc: &Document) -> Vec<Paragraph> {
+    if doc.paragraphs.is_empty() {
+        if let Some(ref raw) = doc.text {
+            raw.lines()
+                .filter(|line| !line.trim().is_empty())
+                .map(|line| Paragraph::new(line))
+                .collect()
+        } else {
+            vec![]
+        }
+    } else {
+        doc.paragraphs.clone()
+    }
+}
+
 /// Extract legal entities from a document.
 pub fn extract_legal(doc: &Document) -> LegalTemplate {
     let mut effective_date = None;
@@ -46,7 +61,7 @@ pub fn extract_legal(doc: &Document) -> LegalTemplate {
     let re_jurisdiction = Regex::new(r"(?i)(courts of|jurisdiction in|venue in|courts located in)\s+([A-Z][a-zA-Z\s,]{2,30})").ok();
     
     // Scan paragraphs
-    for p in &doc.paragraphs {
+    for p in get_effective_paragraphs(doc) {
         let text = &p.text;
 
         // 1. Effective Date
@@ -165,7 +180,7 @@ pub fn extract_financial(doc: &Document) -> FinancialTemplate {
         }
     }
     if currency.is_none() {
-        for p in &doc.paragraphs {
+        for p in get_effective_paragraphs(doc) {
             if p.text.contains('$') {
                 currency = Some("USD".to_string());
                 break;
@@ -233,7 +248,7 @@ pub fn extract_financial(doc: &Document) -> FinancialTemplate {
     let re_liab = Regex::new(r"(?i)(total liabilities)[^\d\n.]{0,20}\$?\s*([\d,]+(?:\.\d+)?)").ok();
     let re_fy = Regex::new(r"(?i)\b(FY\d{4}|FY\s*\d{2}|fiscal year \d{4})\b").ok();
 
-    for p in &doc.paragraphs {
+    for p in get_effective_paragraphs(doc) {
         let text = &p.text;
 
         if fiscal_year.is_none() {
@@ -293,7 +308,7 @@ pub fn extract_timeline(doc: &Document) -> TimelineTemplate {
     // 3. DD Month YYYY
     let re_date = Regex::new(r"\b(\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}|(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},?\s+\d{4}|\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4})\b").unwrap();
 
-    for p in &doc.paragraphs {
+    for p in get_effective_paragraphs(doc) {
         let text = &p.text;
         if let Some(cap) = re_date.captures(text) {
             let date_str = cap.get(1).unwrap().as_str().to_string();

@@ -81,4 +81,4 @@ This document outlines the phased implementation plan for `opendoc-mcp`, trackin
 | 6.1 | Cryptographic digital signatures (PDF) | High | 3 days | ❌ |
 | 6.2 | Security audit and sandbox validation | High | 5 days | ❌ |
 | 6.3 | Streamable HTTP transport and streaming comparison | Medium | 3 days | ❌ |
-| 6.4 | PDF/A standard compliance validator | Low | 2 days | ❌ |
+| 6.4 | PDF/A standard compliance validator | Low | 2 days | ✅ |

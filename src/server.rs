@@ -1137,6 +1137,34 @@ impl OpendocServer {
         }).to_string()
     }
 
+    #[tool(description = "Render pages of a PDF, image, or office document (DOCX, PPTX, XLSX) into PNG screenshots for visual reasoning")]
+    fn render_document_pages(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "File path to the document")]
+        file_path: String,
+        #[tool(param)]
+        #[schemars(description = "Target directory to save the rendered PNG files")]
+        output_dir: String,
+        #[tool(param)]
+        #[schemars(description = "Optional resolution DPI (default: 150)")]
+        dpi: Option<u32>,
+        #[tool(param)]
+        #[schemars(description = "Optional list of 1-based page numbers to render (renders all pages if omitted)")]
+        pages: Option<Vec<u32>>,
+    ) -> String {
+        let file_path = validate_path!(file_path);
+        let output_dir = validate_path!(output_dir);
+        
+        match crate::converters::render::render_document_pages(&file_path, &output_dir, dpi, pages) {
+            Ok(files) => serde_json::json!({
+                "success": true,
+                "rendered_files": files,
+            }).to_string(),
+            Err(e) => serde_json::json!({"error": e}).to_string(),
+        }
+    }
+
     // ═══════════════════════════════════════════
     //  UTILITY TOOLS
     // ═══════════════════════════════════════════
@@ -1157,7 +1185,7 @@ impl OpendocServer {
                 "xlsx": ["create_xlsx", "edit_xlsx"],
                 "pdf": ["create_pdf", "merge_pdfs", "extract_pdf_text", "list_pdf_fields", "fill_pdf_form"],
                 "metadata": ["find_tables", "analyze_document_complexity"],
-                "ai_features": ["ocr_document", "check_ocr_available"],
+                "ai_features": ["ocr_document", "check_ocr_available", "render_document_pages"],
                 "utility": ["list_capabilities"]
             }
         }))

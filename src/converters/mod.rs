@@ -6,6 +6,7 @@
 //!   etc.
 
 pub mod transmutation;
+pub mod render;
 
 use crate::ir::Document;
 use std::path::Path;

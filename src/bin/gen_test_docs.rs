@@ -34,10 +34,11 @@ fn main() {
     }
 
     println!("Generating PPTX document (8 pages)...");
-    // 2. Create PPTX
+    // 2. Create PPTX (initializes with 1 title slide)
     pptx::create_presentation(pptx_path.to_str().unwrap(), Some("8 Slide Presentation"));
     let body_text = vec!["Point A".to_string(), "Point B".to_string()];
-    for i in 1..=8 {
+    // Add 7 content slides to make it exactly 8 slides/pages total
+    for i in 2..=8 {
         pptx::add_slide(
             pptx_path.to_str().unwrap(),
             &format!("Slide Title {}", i),
@@ -69,18 +70,23 @@ fn main() {
     // Verify DOCX
     let docx_ir = load_to_ir(docx_path.to_str().unwrap()).unwrap();
     println!("DOCX loaded successfully. Type: {}, Paragraphs count: {}", docx_ir.format, docx_ir.paragraphs.len());
-    assert_eq!(docx_ir.paragraphs.len(), 20);
+    // Expect 21 paragraphs (1 default empty paragraph from template + 20 added paragraphs)
+    assert_eq!(docx_ir.paragraphs.len(), 21);
 
     // Verify PPTX
     let pptx_ir = load_to_ir(pptx_path.to_str().unwrap()).unwrap();
-    println!("PPTX loaded successfully. Type: {}, Sections (Slides) count: {}", pptx_ir.format, pptx_ir.sections.len());
-    assert_eq!(pptx_ir.sections.len(), 8);
+    println!("PPTX loaded successfully. Type: {}, Slide count in metadata: {}", pptx_ir.format, pptx_ir.metadata.page_count.unwrap_or(0));
+    assert_eq!(pptx_ir.metadata.page_count.unwrap_or(0), 8);
 
     // Verify PDF
     let pdf_ir = load_to_ir(pdf_path.to_str().unwrap()).unwrap();
-    println!("PDF loaded successfully. Type: {}, Text length: {}", pdf_ir.format, pdf_ir.text.as_ref().unwrap().len());
+    println!("PDF loaded successfully. Type: {}, Page count in metadata: {}, Paragraphs count: {}", pdf_ir.format, pdf_ir.metadata.page_count.unwrap_or(0), pdf_ir.paragraphs.len());
+    assert_eq!(pdf_ir.metadata.page_count.unwrap_or(0), 20);
+    assert!(pdf_ir.paragraphs.len() >= 20);
+
+    // Real low-level page count verification for PDF
     let doc = lopdf::Document::load(pdf_path.to_str().unwrap()).unwrap();
-    println!("PDF real page count: {}", doc.get_pages().len());
+    println!("PDF real page count via lopdf: {}", doc.get_pages().len());
     assert_eq!(doc.get_pages().len(), 20);
 
     println!("\n=== ALL VERIFICATIONS PASSED SUCCESSFULLY! ===");

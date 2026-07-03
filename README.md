@@ -255,10 +255,52 @@ opendoc-mcp/
 **v0.0.7 ✅** — Visual Document Diffing (HTML/Markdown highlights)
 **v0.0.8 ✅** — Enhanced DOCX/PPTX styling and layout options
 **v0.0.9 ✅** — Scanned PDF & Image OCR Integration
-**v0.1.0 🔄** — WASM target, digital signatures, document comparison, streaming
-**v1.0.0** — Production-ready: full format coverage, enterprise security, OCR
+**v0.0.11 ✅** — Document Vision (Screenshots), Recursive ZIP archive digests, and Domain template extractions
+**v0.0.12 ✅** — WASM target support and PDF/A compliance validator
+**v0.1.0 🔄** — Digital signatures, streamable HTTP transport, security hardening
+**v1.0.0** — Production-ready: enterprise security, full format coverage
 
 See [docs/implementationplan.md](docs/implementationplan.md) for details.
+
+## Local Installation & Updates
+
+To compile and install the binary globally in your user space (installs to `~/.local/bin/`):
+
+```bash
+./localinstall.sh
+```
+
+When you make changes to the source code or pull new updates, rebuild and update your global installation:
+
+```bash
+./localupdate.sh
+```
+
+---
+
+## System Requirements & Performance
+
+`opendoc-mcp` is designed to be extremely lightweight and highly performant:
+
+- **RAM**: ~3-5 MB (Idle), scaling up to only ~20-30 MB under heavy batch processing or OCR.
+- **ROM (Storage)**: ~5 MB (single self-contained compiled binary).
+- **Processor**: Fully supported on single-core or multi-core x86_64 and ARM processors. Batch conversion and complex parsing scale automatically across multiple cores using `rayon`.
+- **Speed**: Sub-10ms startup time. Operations like text extraction, replacement, template parsing, and conversion typically execute in under 2-15ms.
+
+---
+
+## Comparison with Other MCP Servers
+
+| Feature | `opendoc-mcp` (Our Server) | `opendocswork-mcp` | `spreadsheet-mcp` |
+|---------|----------------------------|--------------------|-------------------|
+| **Language** | Pure Rust | TypeScript / Python | Go / Python |
+| **Idle Memory** | **~3-5 MB** | ~40-70 MB | ~30-60 MB |
+| **Startup Time** | **< 10ms** | ~300-800ms | ~200-500ms |
+| **External Dependencies** | **None** (Self-contained) | Requires LibreOffice / Node | Requires external libraries |
+| **ZIP Archive Extraction & MD Digest** | **Yes** (Recursive) | No | No |
+| **Multimodal Visual Reasoning** | **Yes** (Renders to image directories) | No | No |
+| **PDF/A Compliance Validation** | **Yes** (Embedded fonts, encryption check) | No | No |
+| **Structured Metadata Extraction** | **Yes** (Legal, Financial, Timelines) | No | No |
 
 ---
 

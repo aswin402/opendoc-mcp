@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.0.12] — 2026-07-03
+
+### Added
+- **PDF/A standard compliance validator**: Implemented structural validation for PDF/A compliant documents (detecting non-embedded fonts, password encryption, forbidden interactive actions, and XMP metadata).
+- **WebAssembly Compilation Target**: Added and verified support for `wasm32-unknown-unknown` targets with `--no-default-features`.
+- **Global Install and Update Scripts**: Created `localinstall.sh` and `localupdate.sh` helper scripts for user-space installation.
+
+## [0.0.11] — 2026-07-03
+
+### Added
+- **Multi-Format Document Visual Page Screenshots**: Introduced `render_document_pages` tool using system-installed `pdftoppm` and headless LibreOffice to render document pages into image directories.
+- **Recursive ZIP/Archive Extraction digests**: Introduced `extract_archive_digest` to unpack ZIP archives recursively and compile a unified Markdown digest of all document contents.
+- **Structured Domain Template Extraction**: Introduced `extract_structured_metadata` tool and plain text fallbacks for Legal, Financial, and chronological Timeline templates.
+
 ## [0.0.10] — 2026-07-02
 
 ### Added

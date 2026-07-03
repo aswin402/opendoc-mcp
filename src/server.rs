@@ -664,14 +664,14 @@ impl OpendocServer {
     //  DOCX TOOLS
     // ═══════════════════════════════════════════
 
-    #[tool(description = "Create a new DOCX document")]
+    #[tool(description = "Create a new DOCX document. Professional layout: Page size must be US Letter (12240x15840 DXA) or A4, margins 1 inch (1440 DXA). Use Georgia/Cambria for headings, Calibri/Arial for body text. Left-align paragraphs; center only titles. Include a Table of Contents (TOC) using HeadingLevels.")]
     fn create_docx(
         &self,
         #[tool(param)]
         #[schemars(description = "File path to save the document")]
         file_path: String,
         #[tool(param)]
-        #[schemars(description = "Optional title")]
+        #[schemars(description = "Optional document title (placed centered on page 1)")]
         title: Option<String>,
     ) -> String {
         let file_path = validate_path!(file_path);
@@ -825,14 +825,14 @@ impl OpendocServer {
     //  PPTX TOOLS
     // ═══════════════════════════════════════════
 
-    #[tool(description = "Create a new PowerPoint presentation")]
+    #[tool(description = "Create a new PowerPoint presentation. Design rules: Choose a bold, topic-informed color palette (e.g. Midnight Executive, Forest & Moss, Coral Energy). Maintain 60-30-10 dominance. Leave breathing room—don't fill every inch. Use Georgia/Calibri/Segoe UI. Left-align body text.")]
     fn create_pptx(
         &self,
         #[tool(param)]
         #[schemars(description = "File path to save the presentation")]
         file_path: String,
         #[tool(param)]
-        #[schemars(description = "Optional title")]
+        #[schemars(description = "Optional title (rendered on title slide)")]
         title: Option<String>,
     ) -> String {
         let file_path = validate_path!(file_path);

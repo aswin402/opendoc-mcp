@@ -13,6 +13,23 @@ fi
 echo "Rebuilding release binary..."
 cargo +stable build --release --all-features
 
+# Resolve the binary path
+BINARY_PATH=""
+if [ -f "target/release/opendoc-mcp" ]; then
+    BINARY_PATH="target/release/opendoc-mcp"
+elif [ -f "../../target/release/opendoc-mcp" ]; then
+    BINARY_PATH="../../target/release/opendoc-mcp"
+elif [ -f "../target/release/opendoc-mcp" ]; then
+    BINARY_PATH="../target/release/opendoc-mcp"
+else
+    BINARY_PATH=$(find ../../ -name "opendoc-mcp" -path "*/release/opendoc-mcp" -print -quit 2>/dev/null)
+fi
+
+if [ -z "$BINARY_PATH" ] || [ ! -f "$BINARY_PATH" ]; then
+    echo "Error: Could not locate the built release binary."
+    exit 1
+fi
+
 # Copy binary to global location
 INSTALL_DIR="$HOME/.local/bin"
 if [ ! -d "$INSTALL_DIR" ]; then
@@ -20,8 +37,8 @@ if [ ! -d "$INSTALL_DIR" ]; then
     exit 1
 fi
 
-echo "Copying updated binary to $INSTALL_DIR/opendoc-mcp..."
-cp target/release/opendoc-mcp "$INSTALL_DIR/opendoc-mcp"
+echo "Copying updated binary to $INSTALL_DIR/opendoc-mcp from $BINARY_PATH..."
+cp "$BINARY_PATH" "$INSTALL_DIR/opendoc-mcp"
 
 echo ""
 echo "=== Update complete! ==="

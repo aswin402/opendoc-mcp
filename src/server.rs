@@ -1165,6 +1165,28 @@ impl OpendocServer {
         }
     }
 
+    #[tool(description = "Recursively unpack a ZIP archive (including nested archives), parse all supported documents inside it, and compile a single structured Markdown digest report (digest.md)")]
+    fn extract_archive_digest(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "Absolute path to the ZIP archive")]
+        archive_path: String,
+        #[tool(param)]
+        #[schemars(description = "Optional destination directory. If not specified, a temporary directory will be created.")]
+        output_dir: Option<String>,
+    ) -> String {
+        let archive_path = validate_path!(archive_path);
+        let output_dir_val = output_dir.map(|p| validate_path!(p));
+        
+        match crate::batch::archive::process_archive_digest(
+            &archive_path,
+            output_dir_val.as_deref(),
+        ) {
+            Ok(res) => serde_json::to_string(&res).unwrap_or_default(),
+            Err(e) => serde_json::json!({"error": e}).to_string(),
+        }
+    }
+
     // ═══════════════════════════════════════════
     //  UTILITY TOOLS
     // ═══════════════════════════════════════════
@@ -1179,7 +1201,7 @@ impl OpendocServer {
             "tool_categories": {
                 "document_intelligence": ["open_document", "read_document_text", "search_document", "replace_text", "diff_documents", "diff_documents_visual", "chunk_for_embedding", "fill_template", "validate_document"],
                 "conversion": ["convert", "create_html"],
-                "batch": ["batch_convert"],
+                "batch": ["batch_convert", "extract_archive_digest"],
                 "docx": ["create_docx", "docx_add_paragraph", "docx_add_table", "docx_add_image"],
                 "pptx": ["create_pptx", "pptx_add_slide"],
                 "xlsx": ["create_xlsx", "edit_xlsx"],

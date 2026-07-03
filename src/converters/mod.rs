@@ -405,38 +405,7 @@ pub fn export(doc: &Document, target_format: &str, output: &str) -> Result<Conve
             })
         }
         "md" | "markdown" => {
-            let mut md = String::new();
-            if !doc.paragraphs.is_empty() || !doc.tables.is_empty() {
-                for p in &doc.paragraphs {
-                    if p.is_heading {
-                        let level = "#".repeat(p.heading_level.max(1) as usize);
-                        md.push_str(&format!("{} {}\n\n", level, p.text));
-                    } else {
-                        md.push_str(&format!("{}\n\n", p.text));
-                    }
-                }
-                for table in &doc.tables {
-                    if let Some(ref cap) = table.caption {
-                        md.push_str(&format!("*{}*\n\n", cap));
-                    }
-                    if !table.headers.is_empty() {
-                        md.push_str("| ");
-                        md.push_str(&table.headers.join(" | "));
-                        md.push_str(" |\n");
-                        md.push_str("| ");
-                        md.push_str(&vec!["---"; table.headers.len()].join(" | "));
-                        md.push_str(" |\n");
-                    }
-                    for row in &table.rows {
-                        md.push_str("| ");
-                        md.push_str(&row.join(" | "));
-                        md.push_str(" |\n");
-                    }
-                    md.push('\n');
-                }
-            } else if let Some(ref raw) = doc.text {
-                md.push_str(raw);
-            }
+            let md = doc.to_markdown();
             std::fs::write(output, &md)
                 .map_err(|e| ConversionError::IoError(e.to_string()))?;
             Ok(ConversionResult {

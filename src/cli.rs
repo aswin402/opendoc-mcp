@@ -88,6 +88,14 @@ mod imp {
         },
         /// List supported formats
         Formats,
+        /// Recursively unpack a ZIP archive and generate a Markdown digest report
+        Digest {
+            /// ZIP archive file path
+            archive: String,
+            /// Output directory (optional)
+            #[arg(short, long)]
+            output_dir: Option<String>,
+        },
     }
 
     pub fn run() -> anyhow::Result<()> {
@@ -194,6 +202,12 @@ mod imp {
                     }
                 });
                 println!("{}", serde_json::to_string_pretty(&formats).unwrap());
+            }
+            Commands::Digest { archive, output_dir } => {
+                match crate::batch::archive::process_archive_digest(&archive, output_dir.as_deref()) {
+                    Ok(result) => println!("{}", serde_json::to_string_pretty(&result).unwrap()),
+                    Err(e) => eprintln!("Error: {}", e),
+                }
             }
         }
         Ok(())

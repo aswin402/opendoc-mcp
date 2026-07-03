@@ -2,6 +2,8 @@
 //!
 //! Uses rayon for parallel execution.
 
+pub mod archive;
+
 use rayon::prelude::*;
 use std::path::Path;
 

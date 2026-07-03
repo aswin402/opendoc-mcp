@@ -96,6 +96,43 @@ impl Document {
     ) -> Vec<Chunk> {
         crate::engine::chunk::chunk_document(self, strategy, max_tokens, overlap)
     }
+
+    /// Convert the universal document representation to Markdown format.
+    pub fn to_markdown(&self) -> String {
+        let mut md = String::new();
+        if !self.paragraphs.is_empty() || !self.tables.is_empty() {
+            for p in &self.paragraphs {
+                if p.is_heading {
+                    let level = "#".repeat(p.heading_level.max(1) as usize);
+                    md.push_str(&format!("{} {}\n\n", level, p.text));
+                } else {
+                    md.push_str(&format!("{}\n\n", p.text));
+                }
+            }
+            for table in &self.tables {
+                if let Some(ref cap) = table.caption {
+                    md.push_str(&format!("*{}*\n\n", cap));
+                }
+                if !table.headers.is_empty() {
+                    md.push_str("| ");
+                    md.push_str(&table.headers.join(" | "));
+                    md.push_str(" |\n");
+                    md.push_str("| ");
+                    md.push_str(&vec!["---"; table.headers.len()].join(" | "));
+                    md.push_str(" |\n");
+                }
+                for row in &table.rows {
+                    md.push_str("| ");
+                    md.push_str(&row.join(" | "));
+                    md.push_str(" |\n");
+                }
+                md.push('\n');
+            }
+        } else if let Some(ref raw) = self.text {
+            md.push_str(raw);
+        }
+        md
+    }
 }
 
 /// A section of a document (chapter, slide, worksheet)

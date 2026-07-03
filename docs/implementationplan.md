@@ -59,14 +59,14 @@ This document outlines the phased implementation plan for `opendoc-mcp`, trackin
 
 | ID | Task | Priority | Est. Effort | Status | Description |
 |----|------|----------|-------------|--------|-------------|
-| 5.1 | Document screenshots for visual reasoning | High | 2 days | ❌ | Render document pages to PNG/JPEG image paths so multimodal agents can view charts/tables. |
-| 5.2 | Recursive ZIP/Archive extraction | Medium | 1 day | ❌ | Process mixed archive files recursively and output clean Markdown digests. |
+| 5.1 | Document screenshots for visual reasoning | High | 2 days | ✅ | Render document pages to PNG/JPEG image paths so multimodal agents can view charts/tables. |
+| 5.2 | Recursive ZIP/Archive extraction | Medium | 1 day | ✅ | Process mixed archive files recursively and output clean Markdown digests. |
 | 5.3 | Structured Domain Template extraction | High | 3 days | ❌ | Extract structured entities using pre-defined legal, financial, and spatio-temporal templates. |
 | 5.4 | WASM Target support | Medium | 3 days | ❌ | Configure compilation for browser/edge execution (`wasm32-unknown-unknown`). |
 
 ### Deliverables
-- [ ] Tool to render PDF/DOCX/PPTX pages to images for agent vision
-- [ ] Tool to extract, parse, and summarize mixed files inside `.zip` archives
+- [x] Tool to render PDF/DOCX/PPTX pages to images for agent vision
+- [x] Tool to extract, parse, and summarize mixed files inside `.zip` archives
 - [ ] Rule-based template extraction engine (`src/engine/extract.rs`) for finance and contracts
 - [ ] WASM target build and compilation instructions
 

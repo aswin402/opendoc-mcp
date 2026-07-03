@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.0.11] — 2026-07-03
+
+### Added
+
+#### Document Screenshots Rendering (Task 5.1)
+- Implemented multi-format document page screenshots rendering (`render_document_pages` tool).
+- Supports PDF rendering directly to PNGs via Poppler's `pdftoppm`.
+- Supports DOCX, PPTX, XLSX, and HTML rendering to page-by-page PNGs by converting to a temporary PDF via headless LibreOffice `soffice` first.
+- Added comprehensive unit tests and automated DPI/page filters.
+
+#### Recursive ZIP Archive Extraction & Markdown Digesting (Task 5.2)
+- Implemented recursive ZIP archive extraction (`extract_archive_digest` tool and CLI subcommand `digest`).
+- Recursively unpacks nested zip files, creating structured directory paths.
+- Scans all files and parses compatible document formats (PDF, DOCX, PPTX, XLSX, HTML, MD, CSV, TXT) into a single Markdown digest report (`digest.md`) summarizing the archive's structured contents.
+- Added unit tests for recursive extraction lifecycle.
+
 ## [0.0.10] — 2026-07-02
 
 ### Added

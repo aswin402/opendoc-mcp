@@ -9,6 +9,7 @@ pub mod template;
 pub mod diff;
 pub mod complexity;
 pub mod chunk;
+pub mod extract;
 
 use crate::ir::Document;
 

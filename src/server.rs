@@ -1187,6 +1187,42 @@ impl OpendocServer {
         }
     }
 
+    #[tool(description = "Extract structured domain entities (legal, financial, timeline) from a document using pre-defined rules and heuristics")]
+    fn extract_structured_metadata(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "File path to the document")]
+        file_path: String,
+        #[tool(param)]
+        #[schemars(description = "The target domain template: 'legal', 'financial', or 'timeline'")]
+        template_type: String,
+    ) -> String {
+        let file_path = validate_path!(file_path);
+        
+        let doc = match crate::handlers::load_to_ir(&file_path) {
+            Ok(d) => d,
+            Err(e) => return serde_json::json!({"error": e.to_string()}).to_string(),
+        };
+
+        match template_type.to_lowercase().as_str() {
+            "legal" => {
+                let res = crate::engine::extract::extract_legal(&doc);
+                serde_json::to_string_pretty(&res).unwrap_or_default()
+            }
+            "financial" => {
+                let res = crate::engine::extract::extract_financial(&doc);
+                serde_json::to_string_pretty(&res).unwrap_or_default()
+            }
+            "timeline" => {
+                let res = crate::engine::extract::extract_timeline(&doc);
+                serde_json::to_string_pretty(&res).unwrap_or_default()
+            }
+            other => serde_json::json!({
+                "error": format!("Unsupported template type: '{}'. Supported types: 'legal', 'financial', 'timeline'.", other)
+            }).to_string(),
+        }
+    }
+
     // ═══════════════════════════════════════════
     //  UTILITY TOOLS
     // ═══════════════════════════════════════════
@@ -1206,7 +1242,7 @@ impl OpendocServer {
                 "pptx": ["create_pptx", "pptx_add_slide"],
                 "xlsx": ["create_xlsx", "edit_xlsx"],
                 "pdf": ["create_pdf", "merge_pdfs", "extract_pdf_text", "list_pdf_fields", "fill_pdf_form"],
-                "metadata": ["find_tables", "analyze_document_complexity"],
+                "metadata": ["find_tables", "analyze_document_complexity", "extract_structured_metadata"],
                 "ai_features": ["ocr_document", "check_ocr_available", "render_document_pages"],
                 "utility": ["list_capabilities"]
             }

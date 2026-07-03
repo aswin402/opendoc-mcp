@@ -96,6 +96,13 @@ mod imp {
             #[arg(short, long)]
             output_dir: Option<String>,
         },
+        /// Extract structured metadata (legal, financial, timeline)
+        Metadata {
+            /// File path to document
+            path: String,
+            /// Template type (legal, financial, timeline)
+            template: String,
+        },
     }
 
     pub fn run() -> anyhow::Result<()> {
@@ -207,6 +214,24 @@ mod imp {
                 match crate::batch::archive::process_archive_digest(&archive, output_dir.as_deref()) {
                     Ok(result) => println!("{}", serde_json::to_string_pretty(&result).unwrap()),
                     Err(e) => eprintln!("Error: {}", e),
+                }
+            }
+            Commands::Metadata { path, template } => {
+                let doc = crate::handlers::load_to_ir(&path)?;
+                match template.to_lowercase().as_str() {
+                    "legal" => {
+                        let res = crate::engine::extract::extract_legal(&doc);
+                        println!("{}", serde_json::to_string_pretty(&res).unwrap());
+                    }
+                    "financial" => {
+                        let res = crate::engine::extract::extract_financial(&doc);
+                        println!("{}", serde_json::to_string_pretty(&res).unwrap());
+                    }
+                    "timeline" => {
+                        let res = crate::engine::extract::extract_timeline(&doc);
+                        println!("{}", serde_json::to_string_pretty(&res).unwrap());
+                    }
+                    other => eprintln!("Error: Unsupported template type '{}'. Supported: 'legal', 'financial', 'timeline'.", other),
                 }
             }
         }

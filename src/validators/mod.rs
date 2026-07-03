@@ -1,5 +1,7 @@
 //! Document validation (PDF/A compliance, structure checks, etc.)
 
+pub mod pdf_a;
+
 use crate::ir::Document;
 
 #[derive(Debug, Clone, serde::Serialize)]

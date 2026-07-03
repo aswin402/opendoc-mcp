@@ -468,6 +468,26 @@ impl OpendocServer {
         }
     }
 
+    #[tool(description = "Validate PDF/A standard compliance (encryption, embedded fonts, forbidden actions, XMP metadata)")]
+    fn validate_pdf_a_compliance(
+        &self,
+        #[tool(param)]
+        #[schemars(description = "File path to the PDF document")]
+        file_path: String,
+    ) -> String {
+        let file_path = validate_path!(file_path);
+        
+        let path = std::path::Path::new(&file_path);
+        if path.extension().and_then(|ext| ext.to_str()).map(|ext| ext.to_lowercase()) != Some("pdf".to_string()) {
+            return serde_json::json!({"error": "Only PDF files are supported for PDF/A validation"}).to_string();
+        }
+
+        match crate::validators::pdf_a::validate_pdf_a(path) {
+            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+            Err(e) => serde_json::json!({"error": e.to_string()}).to_string(),
+        }
+    }
+
     // ═══════════════════════════════════════════
     //  CONVERSION TOOLS
     // ═══════════════════════════════════════════
@@ -1235,7 +1255,7 @@ impl OpendocServer {
             "description": "Rust-native Document Intelligence Engine for AI Agents",
             "formats": ["docx", "pptx", "pdf", "xlsx", "html", "md", "csv", "txt"],
             "tool_categories": {
-                "document_intelligence": ["open_document", "read_document_text", "search_document", "replace_text", "diff_documents", "diff_documents_visual", "chunk_for_embedding", "fill_template", "validate_document"],
+                "document_intelligence": ["open_document", "read_document_text", "search_document", "replace_text", "diff_documents", "diff_documents_visual", "chunk_for_embedding", "fill_template", "validate_document", "validate_pdf_a_compliance"],
                 "conversion": ["convert", "create_html"],
                 "batch": ["batch_convert", "extract_archive_digest"],
                 "docx": ["create_docx", "docx_add_paragraph", "docx_add_table", "docx_add_image"],

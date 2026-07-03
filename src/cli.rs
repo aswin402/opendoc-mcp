@@ -103,6 +103,11 @@ mod imp {
             /// Template type (legal, financial, timeline)
             template: String,
         },
+        /// Validate a PDF file for PDF/A compliance
+        ValidatePdfA {
+            /// File path to PDF document
+            path: String,
+        },
     }
 
     pub fn run() -> anyhow::Result<()> {
@@ -232,6 +237,12 @@ mod imp {
                         println!("{}", serde_json::to_string_pretty(&res).unwrap());
                     }
                     other => eprintln!("Error: Unsupported template type '{}'. Supported: 'legal', 'financial', 'timeline'.", other),
+                }
+            }
+            Commands::ValidatePdfA { path } => {
+                match crate::validators::pdf_a::validate_pdf_a(std::path::Path::new(&path)) {
+                    Ok(result) => println!("{}", serde_json::to_string_pretty(&result).unwrap()),
+                    Err(e) => eprintln!("Error: {}", e),
                 }
             }
         }
